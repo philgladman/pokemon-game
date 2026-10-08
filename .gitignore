@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+*.py[cod]
+htmlcov/
+.coverage
+
+frontend/dist/
+frontend/node_modules/
+frontend/*.tsbuildinfo
+
+# Reference source is intentionally never vendored.
+external/pokered/

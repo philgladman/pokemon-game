@@ -1,0 +1,91 @@
+:root {
+  color: #17362d;
+  font-family: Inter, ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #b8dced;
+}
+
+#app,
+#world {
+  width: 100vw;
+  height: 100vh;
+}
+
+#world {
+  display: block;
+}
+
+.hud {
+  position: fixed;
+  inset: 1rem 1rem auto 1rem;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  pointer-events: none;
+}
+
+.hud > div,
+.hud > span {
+  padding: 0.7rem 0.9rem;
+  border: 2px solid rgb(255 255 255 / 70%);
+  border-radius: 0.75rem;
+  background: rgb(248 252 243 / 88%);
+  box-shadow: 0 8px 24px rgb(33 61 53 / 18%);
+  backdrop-filter: blur(8px);
+}
+
+h1,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 1.05rem;
+}
+
+.hud p,
+.dialog small {
+  margin-top: 0.25rem;
+  color: #527067;
+  font-size: 0.78rem;
+}
+
+.dialog {
+  position: fixed;
+  right: max(1rem, calc((100vw - 46rem) / 2));
+  bottom: 1.5rem;
+  left: max(1rem, calc((100vw - 46rem) / 2));
+  min-height: 8rem;
+  padding: 1.15rem 1.3rem;
+  border: 4px solid #254b42;
+  border-radius: 0.8rem;
+  background: #fffdf2;
+  box-shadow: 0 12px 40px rgb(20 40 35 / 30%);
+}
+
+.dialog strong {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: #b34f50;
+}
+
+.dialog small {
+  display: block;
+  margin-top: 0.75rem;
+  text-align: right;
+}
+
+.hidden {
+  display: none;
+}
+

@@ -1,0 +1,68 @@
+appearances:
+  - id: tile.path
+    source:
+      type: primitive
+      shape: flat
+      color: "#d8c58a"
+  - id: tile.grass
+    source:
+      type: primitive
+      shape: flat
+      color: "#79b96b"
+  - id: tile.water
+    source:
+      type: primitive
+      shape: flat
+      color: "#4f9ed8"
+  - id: tile.tree
+    base_color: "#8bb873"
+    source:
+      type: primitive
+      shape: tree
+      color: "#286548"
+      secondary_color: "#76513a"
+  - id: tile.building
+    base_color: "#8bb873"
+    source:
+      type: primitive
+      shape: box
+      color: "#c76557"
+      scale: [0.96, 1.5, 0.96]
+  - id: tile.floor
+    source:
+      type: primitive
+      shape: flat
+      color: "#d8b686"
+  - id: tile.wall
+    base_color: "#d8b686"
+    source:
+      type: primitive
+      shape: box
+      color: "#705b4d"
+      scale: [0.96, 0.8, 0.96]
+  - id: tile.rug
+    source:
+      type: primitive
+      shape: flat
+      color: "#b84c50"
+  - id: character.player
+    source:
+      type: primitive
+      shape: capsule
+      color: "#f4c542"
+  - id: character.town_gardener
+    source:
+      type: primitive
+      shape: capsule
+      color: "#f08db2"
+  - id: character.town_technologist
+    source:
+      type: primitive
+      shape: capsule
+      color: "#7d95dc"
+  - id: character.parent
+    source:
+      type: primitive
+      shape: capsule
+      color: "#c889e8"
+

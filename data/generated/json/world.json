@@ -1,0 +1,879 @@
+{
+  "asset_manifest": {
+    "character.parent": {
+      "base_color": null,
+      "id": "character.parent",
+      "source": {
+        "color": "#c889e8",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "secondary_color": null,
+        "shape": "capsule",
+        "type": "primitive"
+      }
+    },
+    "character.player": {
+      "base_color": null,
+      "id": "character.player",
+      "source": {
+        "color": "#f4c542",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "secondary_color": null,
+        "shape": "capsule",
+        "type": "primitive"
+      }
+    },
+    "character.town_gardener": {
+      "base_color": null,
+      "id": "character.town_gardener",
+      "source": {
+        "color": "#f08db2",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "secondary_color": null,
+        "shape": "capsule",
+        "type": "primitive"
+      }
+    },
+    "character.town_technologist": {
+      "base_color": null,
+      "id": "character.town_technologist",
+      "source": {
+        "color": "#7d95dc",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "secondary_color": null,
+        "shape": "capsule",
+        "type": "primitive"
+      }
+    },
+    "tile.building": {
+      "base_color": "#8bb873",
+      "id": "tile.building",
+      "source": {
+        "color": "#c76557",
+        "scale": [
+          0.96,
+          1.5,
+          0.96
+        ],
+        "secondary_color": null,
+        "shape": "box",
+        "type": "primitive"
+      }
+    },
+    "tile.floor": {
+      "base_color": null,
+      "id": "tile.floor",
+      "source": {
+        "color": "#d8b686",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "secondary_color": null,
+        "shape": "flat",
+        "type": "primitive"
+      }
+    },
+    "tile.grass": {
+      "base_color": null,
+      "id": "tile.grass",
+      "source": {
+        "color": "#79b96b",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "secondary_color": null,
+        "shape": "flat",
+        "type": "primitive"
+      }
+    },
+    "tile.path": {
+      "base_color": null,
+      "id": "tile.path",
+      "source": {
+        "color": "#d8c58a",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "secondary_color": null,
+        "shape": "flat",
+        "type": "primitive"
+      }
+    },
+    "tile.rug": {
+      "base_color": null,
+      "id": "tile.rug",
+      "source": {
+        "color": "#b84c50",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "secondary_color": null,
+        "shape": "flat",
+        "type": "primitive"
+      }
+    },
+    "tile.tree": {
+      "base_color": "#8bb873",
+      "id": "tile.tree",
+      "source": {
+        "color": "#286548",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "secondary_color": "#76513a",
+        "shape": "tree",
+        "type": "primitive"
+      }
+    },
+    "tile.wall": {
+      "base_color": "#d8b686",
+      "id": "tile.wall",
+      "source": {
+        "color": "#705b4d",
+        "scale": [
+          0.96,
+          0.8,
+          0.96
+        ],
+        "secondary_color": null,
+        "shape": "box",
+        "type": "primitive"
+      }
+    },
+    "tile.water": {
+      "base_color": null,
+      "id": "tile.water",
+      "source": {
+        "color": "#4f9ed8",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "secondary_color": null,
+        "shape": "flat",
+        "type": "primitive"
+      }
+    }
+  },
+  "maps": {
+    "pallet_town": {
+      "height": 18,
+      "id": "pallet_town",
+      "name": "Pallet Town",
+      "npcs": [
+        {
+          "appearance": "character.town_gardener",
+          "dialog": [
+            "The flowers grow best when everyone takes care of the town.",
+            "Someday I want to explore beyond the northern path."
+          ],
+          "facing": "east",
+          "id": "town_gardener",
+          "name": "Mira",
+          "position": {
+            "x": 3,
+            "y": 8
+          }
+        },
+        {
+          "appearance": "character.town_technologist",
+          "dialog": [
+            "Imagine storing a whole adventure as data. Technology is remarkable!"
+          ],
+          "facing": "west",
+          "id": "town_technologist",
+          "name": "Theo",
+          "position": {
+            "x": 11,
+            "y": 14
+          }
+        }
+      ],
+      "player_spawn": {
+        "x": 5,
+        "y": 7
+      },
+      "source": {
+        "map_name": "PalletTown",
+        "repository": "https://github.com/pret/pokered",
+        "revision": "af519899719f0754965776faac0e836a3b906e6d"
+      },
+      "tile_definitions": {
+        "building": {
+          "appearance": "tile.building",
+          "id": "building",
+          "surfable": false,
+          "walkable": false
+        },
+        "floor": {
+          "appearance": "tile.floor",
+          "id": "floor",
+          "surfable": false,
+          "walkable": true
+        },
+        "grass": {
+          "appearance": "tile.grass",
+          "id": "grass",
+          "surfable": false,
+          "walkable": true
+        },
+        "path": {
+          "appearance": "tile.path",
+          "id": "path",
+          "surfable": false,
+          "walkable": true
+        },
+        "rug": {
+          "appearance": "tile.rug",
+          "id": "rug",
+          "surfable": false,
+          "walkable": true
+        },
+        "tree": {
+          "appearance": "tile.tree",
+          "id": "tree",
+          "surfable": false,
+          "walkable": false
+        },
+        "wall": {
+          "appearance": "tile.wall",
+          "id": "wall",
+          "surfable": false,
+          "walkable": false
+        },
+        "water": {
+          "appearance": "tile.water",
+          "id": "water",
+          "surfable": true,
+          "walkable": false
+        }
+      },
+      "tiles": [
+        [
+          "path",
+          "path",
+          "path",
+          "tree",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "tree",
+          "grass",
+          "grass",
+          "tree",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "tree",
+          "path"
+        ],
+        [
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "grass",
+          "grass",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "building",
+          "building",
+          "building",
+          "building",
+          "path",
+          "path",
+          "path",
+          "path",
+          "building",
+          "building",
+          "building",
+          "building",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "building",
+          "building",
+          "building",
+          "building",
+          "path",
+          "path",
+          "path",
+          "path",
+          "building",
+          "building",
+          "building",
+          "building",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "tree",
+          "building",
+          "path",
+          "building",
+          "building",
+          "path",
+          "path",
+          "path",
+          "tree",
+          "building",
+          "path",
+          "building",
+          "building",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "building",
+          "building",
+          "building",
+          "building",
+          "building",
+          "building",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "path",
+          "path",
+          "building",
+          "building",
+          "building",
+          "building",
+          "building",
+          "building",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "building",
+          "building",
+          "building",
+          "building",
+          "building",
+          "building",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "building",
+          "building",
+          "path",
+          "building",
+          "building",
+          "building",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "tree",
+          "water",
+          "water",
+          "water",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "tree",
+          "water",
+          "water",
+          "water",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "path",
+          "path",
+          "path",
+          "tree",
+          "water",
+          "water",
+          "water",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "path",
+          "tree"
+        ],
+        [
+          "tree",
+          "tree",
+          "path",
+          "path",
+          "tree",
+          "water",
+          "water",
+          "water",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree",
+          "tree"
+        ]
+      ],
+      "transitions": [
+        {
+          "position": {
+            "x": 5,
+            "y": 5
+          },
+          "target_facing": "north",
+          "target_map": "reds_house_1f",
+          "target_position": {
+            "x": 2,
+            "y": 7
+          }
+        }
+      ],
+      "width": 20
+    },
+    "reds_house_1f": {
+      "height": 8,
+      "id": "reds_house_1f",
+      "name": "Player's House",
+      "npcs": [
+        {
+          "appearance": "character.parent",
+          "dialog": [
+            "Welcome home. The town is especially peaceful today."
+          ],
+          "facing": "west",
+          "id": "parent",
+          "name": "Mom",
+          "position": {
+            "x": 5,
+            "y": 4
+          }
+        }
+      ],
+      "player_spawn": null,
+      "source": {
+        "map_name": "RedsHouse1F",
+        "repository": "https://github.com/pret/pokered",
+        "revision": "af519899719f0754965776faac0e836a3b906e6d"
+      },
+      "tile_definitions": {
+        "building": {
+          "appearance": "tile.building",
+          "id": "building",
+          "surfable": false,
+          "walkable": false
+        },
+        "floor": {
+          "appearance": "tile.floor",
+          "id": "floor",
+          "surfable": false,
+          "walkable": true
+        },
+        "grass": {
+          "appearance": "tile.grass",
+          "id": "grass",
+          "surfable": false,
+          "walkable": true
+        },
+        "path": {
+          "appearance": "tile.path",
+          "id": "path",
+          "surfable": false,
+          "walkable": true
+        },
+        "rug": {
+          "appearance": "tile.rug",
+          "id": "rug",
+          "surfable": false,
+          "walkable": true
+        },
+        "tree": {
+          "appearance": "tile.tree",
+          "id": "tree",
+          "surfable": false,
+          "walkable": false
+        },
+        "wall": {
+          "appearance": "tile.wall",
+          "id": "wall",
+          "surfable": false,
+          "walkable": false
+        },
+        "water": {
+          "appearance": "tile.water",
+          "id": "water",
+          "surfable": true,
+          "walkable": false
+        }
+      },
+      "tiles": [
+        [
+          "wall",
+          "wall",
+          "wall",
+          "wall",
+          "wall",
+          "wall",
+          "wall",
+          "wall"
+        ],
+        [
+          "wall",
+          "wall",
+          "floor",
+          "wall",
+          "floor",
+          "floor",
+          "floor",
+          "floor"
+        ],
+        [
+          "floor",
+          "floor",
+          "floor",
+          "floor",
+          "floor",
+          "floor",
+          "floor",
+          "floor"
+        ],
+        [
+          "floor",
+          "floor",
+          "floor",
+          "floor",
+          "floor",
+          "floor",
+          "floor",
+          "floor"
+        ],
+        [
+          "floor",
+          "floor",
+          "floor",
+          "wall",
+          "wall",
+          "floor",
+          "floor",
+          "floor"
+        ],
+        [
+          "floor",
+          "floor",
+          "floor",
+          "wall",
+          "wall",
+          "floor",
+          "floor",
+          "floor"
+        ],
+        [
+          "floor",
+          "floor",
+          "rug",
+          "rug",
+          "floor",
+          "floor",
+          "floor",
+          "floor"
+        ],
+        [
+          "floor",
+          "floor",
+          "rug",
+          "rug",
+          "floor",
+          "floor",
+          "floor",
+          "floor"
+        ]
+      ],
+      "transitions": [
+        {
+          "position": {
+            "x": 2,
+            "y": 7
+          },
+          "target_facing": "south",
+          "target_map": "pallet_town",
+          "target_position": {
+            "x": 5,
+            "y": 5
+          }
+        },
+        {
+          "position": {
+            "x": 3,
+            "y": 7
+          },
+          "target_facing": "south",
+          "target_map": "pallet_town",
+          "target_position": {
+            "x": 5,
+            "y": 5
+          }
+        }
+      ],
+      "width": 8
+    }
+  },
+  "player_appearance": "character.player",
+  "start_map": "pallet_town"
+}

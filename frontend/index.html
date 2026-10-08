@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#183d32" />
+    <title>Pallet Town 3D</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="world" aria-label="3D view of Pallet Town"></canvas>
+      <section class="hud" aria-live="polite">
+        <div>
+          <h1 id="map-name">Connecting…</h1>
+          <p>Move: WASD / arrows · Interact: E / Space</p>
+        </div>
+        <span id="connection-status">Connecting</span>
+      </section>
+      <section id="dialog" class="dialog hidden" aria-live="assertive">
+        <strong id="dialog-speaker"></strong>
+        <p id="dialog-line"></p>
+        <small>E / Space to continue</small>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+

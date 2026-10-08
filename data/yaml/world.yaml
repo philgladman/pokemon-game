@@ -1,0 +1,134 @@
+start_map: pallet_town
+player_appearance: character.player
+
+tile_definitions:
+  - id: path
+    walkable: true
+    appearance: tile.path
+  - id: grass
+    walkable: true
+    appearance: tile.grass
+  - id: water
+    walkable: false
+    surfable: true
+    appearance: tile.water
+  - id: tree
+    walkable: false
+    appearance: tile.tree
+  - id: building
+    walkable: false
+    appearance: tile.building
+  - id: floor
+    walkable: true
+    appearance: tile.floor
+  - id: wall
+    walkable: false
+    appearance: tile.wall
+  - id: rug
+    walkable: true
+    appearance: tile.rug
+
+maps:
+  - id: pallet_town
+    name: Pallet Town
+    source_map: pallet_town
+    player_spawn: {x: 5, y: 7}
+    terrain_tiles:
+      walkable: path
+      grass: grass
+      water: water
+      blocked: tree
+    visual_overrides:
+      # Only presentation changes here; the compiler prevents collision changes.
+      - {position: {x: 4, y: 3}, tile: building}
+      - {position: {x: 5, y: 3}, tile: building}
+      - {position: {x: 6, y: 3}, tile: building}
+      - {position: {x: 7, y: 3}, tile: building}
+      - {position: {x: 4, y: 4}, tile: building}
+      - {position: {x: 5, y: 4}, tile: building}
+      - {position: {x: 6, y: 4}, tile: building}
+      - {position: {x: 7, y: 4}, tile: building}
+      - {position: {x: 4, y: 5}, tile: building}
+      - {position: {x: 6, y: 5}, tile: building}
+      - {position: {x: 7, y: 5}, tile: building}
+      - {position: {x: 12, y: 3}, tile: building}
+      - {position: {x: 13, y: 3}, tile: building}
+      - {position: {x: 14, y: 3}, tile: building}
+      - {position: {x: 15, y: 3}, tile: building}
+      - {position: {x: 12, y: 4}, tile: building}
+      - {position: {x: 13, y: 4}, tile: building}
+      - {position: {x: 14, y: 4}, tile: building}
+      - {position: {x: 15, y: 4}, tile: building}
+      - {position: {x: 12, y: 5}, tile: building}
+      - {position: {x: 14, y: 5}, tile: building}
+      - {position: {x: 15, y: 5}, tile: building}
+      - {position: {x: 10, y: 8}, tile: building}
+      - {position: {x: 11, y: 8}, tile: building}
+      - {position: {x: 12, y: 8}, tile: building}
+      - {position: {x: 13, y: 8}, tile: building}
+      - {position: {x: 14, y: 8}, tile: building}
+      - {position: {x: 15, y: 8}, tile: building}
+      - {position: {x: 10, y: 9}, tile: building}
+      - {position: {x: 11, y: 9}, tile: building}
+      - {position: {x: 12, y: 9}, tile: building}
+      - {position: {x: 13, y: 9}, tile: building}
+      - {position: {x: 14, y: 9}, tile: building}
+      - {position: {x: 15, y: 9}, tile: building}
+      - {position: {x: 10, y: 10}, tile: building}
+      - {position: {x: 11, y: 10}, tile: building}
+      - {position: {x: 12, y: 10}, tile: building}
+      - {position: {x: 13, y: 10}, tile: building}
+      - {position: {x: 14, y: 10}, tile: building}
+      - {position: {x: 15, y: 10}, tile: building}
+      - {position: {x: 10, y: 11}, tile: building}
+      - {position: {x: 11, y: 11}, tile: building}
+      - {position: {x: 13, y: 11}, tile: building}
+      - {position: {x: 14, y: 11}, tile: building}
+      - {position: {x: 15, y: 11}, tile: building}
+    npcs:
+      - source_object: pallettown_girl
+        id: town_gardener
+        name: Mira
+        facing: east
+        appearance: character.town_gardener
+        dialog:
+          - The flowers grow best when everyone takes care of the town.
+          - Someday I want to explore beyond the northern path.
+      - source_object: pallettown_fisher
+        id: town_technologist
+        name: Theo
+        facing: west
+        appearance: character.town_technologist
+        dialog:
+          - Imagine storing a whole adventure as data. Technology is remarkable!
+    transitions:
+      - source_position: {x: 5, y: 5}
+        target_facing: north
+
+  - id: reds_house_1f
+    name: Player's House
+    source_map: reds_house_1f
+    terrain_tiles:
+      walkable: floor
+      grass: floor
+      water: floor
+      blocked: wall
+    visual_overrides:
+      - {position: {x: 2, y: 6}, tile: rug}
+      - {position: {x: 3, y: 6}, tile: rug}
+      - {position: {x: 2, y: 7}, tile: rug}
+      - {position: {x: 3, y: 7}, tile: rug}
+    npcs:
+      - source_object: redshouse1f_mom
+        id: parent
+        name: Mom
+        appearance: character.parent
+        dialog:
+          - Welcome home. The town is especially peaceful today.
+    transitions:
+      - source_position: {x: 2, y: 7}
+        last_map_context: pallet_town
+        target_facing: south
+      - source_position: {x: 3, y: 7}
+        last_map_context: pallet_town
+        target_facing: south
