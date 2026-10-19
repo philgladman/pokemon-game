@@ -2,6 +2,7 @@ import type { ClientMessage, ServerMessage, StateMessage } from "./types";
 
 type StateHandler = (message: StateMessage) => void;
 type StatusHandler = (status: string) => void;
+type UnavailableHandler = () => void;
 
 export function shouldAcceptState(currentVersion: number, incomingVersion: number): boolean {
   return incomingVersion >= currentVersion;
@@ -14,17 +15,32 @@ export class GameClient {
   constructor(
     private readonly onState: StateHandler,
     private readonly onStatus: StatusHandler,
+    private readonly onUnavailable: UnavailableHandler = () => undefined,
   ) {}
 
   connect(): void {
     const scheme = window.location.protocol === "https:" ? "wss" : "ws";
     this.socket = new WebSocket(`${scheme}://${window.location.host}/ws/game`);
     this.socket.addEventListener("open", () => this.onStatus("Connected"));
-    this.socket.addEventListener("close", () => this.onStatus("Disconnected — refresh to reconnect"));
-    this.socket.addEventListener("error", () => this.onStatus("Connection error"));
+    this.socket.addEventListener("close", () => {
+      this.onUnavailable();
+      this.onStatus("Disconnected — refresh to reconnect");
+    });
+    this.socket.addEventListener("error", () => {
+      this.onUnavailable();
+      this.onStatus("Connection error");
+    });
     this.socket.addEventListener("message", (event: MessageEvent<string>) => {
-      const message = JSON.parse(event.data) as ServerMessage;
+      let message: ServerMessage;
+      try {
+        message = JSON.parse(event.data) as ServerMessage;
+      } catch {
+        this.onUnavailable();
+        this.onStatus("Invalid server message");
+        return;
+      }
       if (message.type === "error") {
+        this.onUnavailable();
         this.onStatus(message.message);
         return;
       }

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AssetFactory, requireAppearance } from "../src/assetFactory";
+import { AssetFactory, requireAppearance } from "../src/renderers/three_d/AssetFactory";
 import type { AppearanceDefinition, PrimitiveAsset } from "../src/types";
 
 const primitiveTree: PrimitiveAsset = {

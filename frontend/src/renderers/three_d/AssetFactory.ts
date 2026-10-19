@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import type { AppearanceDefinition, PrimitiveAsset } from "./types";
+import type { AppearanceDefinition, PrimitiveAsset } from "../../types";
 
 export type GltfSceneLoader = (url: string) => Promise<THREE.Object3D>;
 

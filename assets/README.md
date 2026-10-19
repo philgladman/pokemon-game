@@ -1,13 +1,11 @@
-# Assets
+# Project-owned assets
 
-Phase 1 renders original geometric primitives in Three.js and contains no
-Pokémon ROM, ripped graphics, music, or other proprietary game media. Future
-assets belong in the typed paths represented by the game-data schema.
+This is the canonical root for original or appropriately licensed Version 2
+assets. FastAPI serves it at `/assets`, and both Vite and Nginx proxy that route,
+so a 3D manifest URL such as `/assets/models/tree.glb` resolves identically in
+local development and Docker. The Three.js asset factory keeps the configured
+primitive visible if a GLB cannot be loaded.
 
-This root directory is the canonical asset source. FastAPI serves it at
-`/assets`, and both Vite and Nginx proxy that route. A manifest URL such as
-`/assets/models/tree.glb` therefore maps to `assets/models/tree.glb` in every
-supported runtime without copying files into the frontend.
-
-Compiled browser JavaScript and CSS use `/frontend/`, not `/assets/`, so they
-cannot collide with this gameplay-asset namespace.
+Version 1 reads source graphics from the ignored `external/pokered` checkout
+through the separate, allowlisted `/source-assets` endpoint. It does not copy
+those graphics here or into Git history.

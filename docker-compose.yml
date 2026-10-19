@@ -5,6 +5,8 @@ services:
       dockerfile: backend/Dockerfile
     expose:
       - "8000"
+    volumes:
+      - ./external/pokered:/source/pokered:ro
     healthcheck:
       test:
         - CMD

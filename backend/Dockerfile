@@ -2,7 +2,8 @@ FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    POKEMON_DATA_PATH=/app/data/generated/json/world.json \
+    POKERED_SOURCE_ROOT=/source/pokered \
+    POKEMON_THREE_D_CONFIG=/app/data/config/three_d.json \
     POKEMON_ASSETS_PATH=/app/assets
 
 WORKDIR /app
@@ -10,7 +11,7 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY backend ./backend
 COPY tools ./tools
-COPY data/generated ./data/generated
+COPY data/config ./data/config
 COPY assets ./assets
 
 RUN pip install --no-cache-dir . \

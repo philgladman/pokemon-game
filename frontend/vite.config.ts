@@ -2,8 +2,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   build: {
-    // Gameplay assets are backend-owned at /assets. Keep generated frontend
-    // bundles in a separate namespace so production routing is unambiguous.
+    // Keep generated bundles separate from backend-owned source assets.
     assetsDir: "frontend",
     rollupOptions: {
       output: {
@@ -18,6 +17,7 @@ export default defineConfig({
     proxy: {
       "/api": "http://localhost:8000",
       "/assets": "http://localhost:8000",
+      "/source-assets": "http://localhost:8000",
       "/ws": {
         target: "ws://localhost:8000",
         ws: true,
