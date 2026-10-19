@@ -3,15 +3,14 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pallet-town-3d"
-version = "0.1.0"
-description = "A server-authoritative Pallet Town 3D vertical slice"
+name = "pokemon-red-browser-runtime"
+version = "0.2.0"
+description = "A source-driven Pokémon Red Pallet Town compatibility runtime"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115,<1",
   "pydantic>=2.10,<3",
-  "PyYAML>=6.0,<7",
   "uvicorn[standard]>=0.34,<1",
 ]
 
@@ -22,7 +21,6 @@ dev = [
   "pytest>=8.3,<9",
   "pytest-cov>=6,<7",
   "ruff>=0.9,<1",
-  "types-PyYAML>=6.0,<7",
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -1,169 +1,206 @@
 import pytest
 from pydantic import ValidationError
 
-from backend.app.models.assets import AppearanceDefinition, PrimitiveAsset
 from backend.app.models.common import Direction, Position
 from backend.app.models.map import (
-    MapDefinition,
-    SourceReference,
-    TileDefinition,
-    TransitionDefinition,
+    NPCDefinition,
+    TextInteraction,
+    WarpDefinition,
     WorldDefinition,
 )
-
-SOURCE = SourceReference(
-    repository="https://example.invalid/source",
-    revision="a" * 40,
-    map_name="Fixture",
-)
-FLOOR = TileDefinition(
-    id="floor",
-    walkable=True,
-    appearance="tile.floor",
-)
-WALL = TileDefinition(
-    id="wall",
-    walkable=False,
-    appearance="tile.wall",
-)
-ASSETS = {
-    "character.player": AppearanceDefinition(
-        id="character.player",
-        source=PrimitiveAsset(shape="capsule", color="#ffff00"),
-    ),
-    "tile.floor": AppearanceDefinition(
-        id="tile.floor",
-        source=PrimitiveAsset(shape="flat", color="#ffffff"),
-    ),
-    "tile.wall": AppearanceDefinition(
-        id="tile.wall",
-        source=PrimitiveAsset(shape="box", color="#000000"),
-    ),
-}
+from tests.conftest import SOURCE, make_map
 
 
-def make_map(**updates: object) -> MapDefinition:
-    values: dict[str, object] = {
-        "id": "room",
-        "name": "Room",
-        "width": 2,
-        "height": 2,
-        "tiles": [["floor", "wall"], ["floor", "floor"]],
-        "tile_definitions": {"floor": FLOOR, "wall": WALL},
-        "player_spawn": Position(x=0, y=0),
-        "source": SOURCE,
-    }
-    values.update(updates)
-    return MapDefinition.model_validate(values)
+def test_map_rejects_malformed_walkable_dimensions() -> None:
+    with pytest.raises(ValidationError, match="walkable dimensions must be 4x4"):
+        make_map("ROOM", walkable=[[True]])
 
 
-def test_map_rejects_malformed_dimensions() -> None:
-    with pytest.raises(ValidationError, match="exactly 2 entries"):
-        make_map(tiles=[["floor"], ["floor", "floor"]])
-
-
-def test_map_rejects_unknown_tile_reference() -> None:
-    with pytest.raises(ValidationError, match="unknown tiles"):
-        make_map(tiles=[["floor", "missing"], ["floor", "floor"]])
-
-
-def test_map_rejects_blocked_spawn() -> None:
-    with pytest.raises(ValidationError, match="spawn must be on a walkable"):
-        make_map(player_spawn=Position(x=1, y=0))
-
-
-def test_world_rejects_unknown_transition_target() -> None:
-    room = make_map(
-        transitions=[
-            TransitionDefinition(
-                position=Position(x=0, y=1),
-                target_map="missing",
-                target_position=Position(x=0, y=0),
-                target_facing=Direction.NORTH,
-            )
-        ]
+def test_map_rejects_out_of_bounds_npc(world: object) -> None:
+    del world
+    direct = TextInteraction(
+        reference="TEXT",
+        status="direct",
+        template_pages=["hello"],
+        provenance=SOURCE,
     )
-    with pytest.raises(ValidationError, match="targets unknown map"):
-        WorldDefinition(
-            start_map="room",
-            player_appearance="character.player",
-            asset_manifest=ASSETS,
-            maps={"room": room},
+    npc = NPCDefinition.model_validate(
+        {
+            "id": "PERSON",
+            "object_index": 1,
+            "position": {"x": 8, "y": 8},
+            "facing": "south",
+            "movement": "STAY",
+            "sprite": "SPRITE_PERSON",
+            "interaction": direct,
+            "provenance": SOURCE,
+        }
+    )
+    with pytest.raises(ValidationError, match="outside map bounds"):
+        make_map("ROOM", npcs=[npc])
+
+
+def test_direct_text_requires_pages() -> None:
+    with pytest.raises(ValidationError, match="require at least one page"):
+        TextInteraction(
+            reference="TEXT",
+            status="direct",
+            provenance=SOURCE,
         )
 
 
-def test_world_rejects_unknown_appearance_reference() -> None:
-    unknown_floor = FLOOR.model_copy(update={"appearance": "tile.missing"})
-    room = make_map(tile_definitions={"floor": unknown_floor, "wall": WALL})
-
-    with pytest.raises(ValidationError, match="unknown appearance"):
-        WorldDefinition(
-            start_map="room",
-            player_appearance="character.player",
-            asset_manifest=ASSETS,
-            maps={"room": room},
+def test_unsupported_text_requires_reason() -> None:
+    with pytest.raises(ValidationError, match="require a reason"):
+        TextInteraction(
+            reference="TEXT",
+            status="unsupported",
+            provenance=SOURCE,
         )
 
 
-def test_world_rejects_npc_overlapping_transition_source(world: WorldDefinition) -> None:
-    payload = world.model_dump(mode="json")
-    town = payload["maps"]["pallet_town"]
-    town["npcs"][0]["position"] = town["transitions"][0]["position"]
-
-    with pytest.raises(
-        ValidationError,
-        match=r"transition at \(5, 5\) overlaps NPC 'town_gardener' and is unreachable",
-    ):
-        WorldDefinition.model_validate(payload)
-
-
-def test_map_rejects_tile_definition_key_id_mismatch() -> None:
-    with pytest.raises(
-        ValidationError,
-        match="tile definition key 'ground' does not match id 'floor' in map 'room'",
-    ):
-        make_map(
-            tiles=[["ground", "wall"], ["ground", "ground"]],
-            tile_definitions={"ground": FLOOR, "wall": WALL},
-        )
-
-
-def test_world_rejects_asset_manifest_key_id_mismatch(world: WorldDefinition) -> None:
-    payload = world.model_dump(mode="json")
-    payload["asset_manifest"]["character.player"]["id"] = "character.impostor"
-
-    with pytest.raises(
-        ValidationError,
-        match=r"asset manifest key 'character\.player' does not match id 'character\.impostor'",
-    ):
-        WorldDefinition.model_validate(payload)
-
-
-def test_world_rejects_map_key_id_mismatch(world: WorldDefinition) -> None:
-    payload = world.model_dump(mode="json")
-    payload["maps"]["pallet_town"]["id"] = "renamed_town"
-
-    with pytest.raises(
-        ValidationError,
-        match="map key 'pallet_town' does not match id 'renamed_town'",
-    ):
-        WorldDefinition.model_validate(payload)
-
-
-def test_extra_schema_fields_fail_immediately() -> None:
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        Position.model_validate({"x": 0, "y": 0, "z": 0})
-
-
-def test_strict_models_reject_string_coercion() -> None:
+def test_strict_position_rejects_string_coercion() -> None:
     with pytest.raises(ValidationError, match="valid integer"):
         Position.model_validate({"x": "1", "y": 0})
 
-    with pytest.raises(ValidationError, match="valid boolean"):
-        TileDefinition.model_validate(
-            {
-                "id": "floor",
-                "walkable": "true",
-                "appearance": "tile.floor",
-            }
+
+def test_edge_exit_requires_an_outward_direction() -> None:
+    with pytest.raises(ValidationError, match="require an outward direction"):
+        WarpDefinition(
+            index=1,
+            position=Position(x=1, y=3),
+            target_map="LAST_MAP",
+            target_warp=1,
+            uses_last_map=True,
+            trigger="edge_exit",
+            provenance=SOURCE,
         )
+
+
+def test_on_step_warp_rejects_an_outward_direction() -> None:
+    with pytest.raises(ValidationError, match="cannot define an outward direction"):
+        WarpDefinition(
+            index=1,
+            position=Position(x=1, y=1),
+            target_map="ROOM",
+            target_warp=1,
+            outward=Direction.SOUTH,
+            provenance=SOURCE,
+        )
+
+
+def test_map_rejects_edge_exit_on_the_wrong_boundary() -> None:
+    warp = WarpDefinition(
+        index=1,
+        position=Position(x=1, y=0),
+        target_map="LAST_MAP",
+        target_warp=1,
+        uses_last_map=True,
+        trigger="edge_exit",
+        outward=Direction.SOUTH,
+        provenance=SOURCE,
+    )
+    with pytest.raises(ValidationError, match="not on its south boundary"):
+        make_map("ROOM", warps=[warp], kind="indoor", last_map_target="OUTSIDE")
+
+
+def make_edge_exit_world(
+    target_warp_position: Position,
+    *,
+    target_walkable: list[list[bool]] | None = None,
+    target_npcs: list[NPCDefinition] | None = None,
+) -> WorldDefinition:
+    edge_exit = WarpDefinition(
+        index=1,
+        position=Position(x=1, y=3),
+        target_map="LAST_MAP",
+        target_warp=1,
+        uses_last_map=True,
+        trigger="edge_exit",
+        outward=Direction.SOUTH,
+        provenance=SOURCE,
+    )
+    return_warp = WarpDefinition(
+        index=1,
+        position=target_warp_position,
+        target_map="SOURCE",
+        target_warp=1,
+        provenance=SOURCE,
+    )
+    source = make_map(
+        "SOURCE",
+        warps=[edge_exit],
+        kind="indoor",
+        last_map_target="TARGET",
+    )
+    target = make_map(
+        "TARGET",
+        walkable=target_walkable,
+        npcs=target_npcs,
+        warps=[return_warp],
+    )
+    return WorldDefinition(
+        start_map="TARGET",
+        player_spawn=Position(x=0, y=0),
+        player_sprite="SPRITE_RED",
+        text_variables={},
+        source_repository=SOURCE.repository,
+        source_revision=SOURCE.revision,
+        maps={"SOURCE": source, "TARGET": target},
+    )
+
+
+def test_world_rejects_edge_exit_landing_out_of_bounds() -> None:
+    with pytest.raises(
+        ValidationError,
+        match=(
+            r"edge-exit warp 1 in SOURCE has invalid automatic landing x=1 y=4 "
+            r"in TARGET: outside map bounds"
+        ),
+    ):
+        make_edge_exit_world(Position(x=1, y=3))
+
+
+def test_world_rejects_edge_exit_landing_on_blocked_terrain() -> None:
+    walkable = [[True] * 4 for _ in range(4)]
+    walkable[2][1] = False
+    with pytest.raises(
+        ValidationError,
+        match=(
+            r"edge-exit warp 1 in SOURCE has invalid automatic landing x=1 y=2 "
+            r"in TARGET: blocked terrain"
+        ),
+    ):
+        make_edge_exit_world(Position(x=1, y=1), target_walkable=walkable)
+
+
+def test_world_rejects_edge_exit_landing_on_an_npc() -> None:
+    interaction = TextInteraction(
+        reference="TEXT",
+        status="direct",
+        template_pages=["hello"],
+        provenance=SOURCE,
+    )
+    npc = NPCDefinition(
+        id="PERSON",
+        object_index=1,
+        position=Position(x=1, y=2),
+        facing=Direction.NORTH,
+        movement="STAY",
+        sprite="SPRITE_PERSON",
+        interaction=interaction,
+        provenance=SOURCE,
+    )
+    with pytest.raises(
+        ValidationError,
+        match=(
+            r"edge-exit warp 1 in SOURCE has invalid automatic landing x=1 y=2 "
+            r"in TARGET: occupied by NPC PERSON"
+        ),
+    ):
+        make_edge_exit_world(Position(x=1, y=1), target_npcs=[npc])
+
+
+def test_world_accepts_a_clear_edge_exit_automatic_landing() -> None:
+    world = make_edge_exit_world(Position(x=1, y=1))
+
+    assert world.maps["TARGET"].is_walkable(Position(x=1, y=2))

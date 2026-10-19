@@ -3,12 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#183d32" />
-    <title>Pallet Town 3D</title>
+    <meta name="theme-color" content="#0f380f" />
+    <title>Pokémon Red — Pallet Town</title>
   </head>
   <body>
     <main id="app">
-      <canvas id="world" aria-label="3D view of Pallet Town"></canvas>
+      <canvas id="world" aria-label="Retro view of Pallet Town"></canvas>
+      <div id="transition-overlay" class="transition-overlay" hidden></div>
       <section class="hud" aria-live="polite">
         <div>
           <h1 id="map-name">Connecting…</h1>
@@ -17,7 +18,6 @@
         <span id="connection-status">Connecting</span>
       </section>
       <section id="dialog" class="dialog hidden" aria-live="assertive">
-        <strong id="dialog-speaker"></strong>
         <p id="dialog-line"></p>
         <small>E / Space to continue</small>
       </section>

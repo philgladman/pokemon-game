@@ -4,7 +4,6 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
-from .assets import AppearanceDefinition
 from .common import Direction, Position, StrictModel
 from .map import MapDefinition
 
@@ -13,6 +12,7 @@ class MoveIntent(StrictModel):
     type: Literal["move"]
     request_id: str = Field(min_length=1, max_length=100)
     direction: Direction = Field(strict=False)
+    continued: bool
 
 
 class InteractIntent(StrictModel):
@@ -31,25 +31,24 @@ Action = Literal[
     "dialog_advanced",
     "dialog_closed",
     "nothing_to_interact",
+    "unsupported_interaction",
 ]
 
 
 class PlayerState(StrictModel):
     position: Position
     facing: Direction = Field(strict=False)
-    appearance: str
+    sprite: str
 
 
 class DialogState(StrictModel):
-    npc_id: str
-    speaker: str
-    lines: list[str]
-    line_index: int = Field(ge=0)
+    interaction_id: str
+    pages: list[str]
+    page_index: int = Field(ge=0)
 
 
 class SessionSnapshot(StrictModel):
     map: MapDefinition
-    asset_manifest: dict[str, AppearanceDefinition]
     player: PlayerState
     dialog: DialogState | None
 

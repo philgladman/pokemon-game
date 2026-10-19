@@ -1,91 +1,104 @@
 :root {
-  color: #17362d;
-  font-family: Inter, ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
+  color: #0f380f;
+  font-family: "Courier New", monospace;
   font-synthesis: none;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
+  display: grid;
+  min-width: 320px;
+  min-height: 100vh;
   margin: 0;
-  overflow: hidden;
-  background: #b8dced;
+  place-items: center;
+  background: #0f380f;
 }
 
-#app,
-#world {
-  width: 100vw;
-  height: 100vh;
+#app {
+  position: relative;
+  width: min(100vw, calc(100vh * 10 / 9));
+  aspect-ratio: 10 / 9;
+  overflow: hidden;
+  background: #9bbc0f;
+  box-shadow: 0 0 0 6px #306230, 0 18px 80px rgb(0 0 0 / 45%);
 }
 
 #world {
   display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
 }
 
-.hud {
-  position: fixed;
-  inset: 1rem 1rem auto 1rem;
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 1rem;
+.transition-overlay {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  background: #000;
+  opacity: 0;
   pointer-events: none;
 }
 
-.hud > div,
-.hud > span {
-  padding: 0.7rem 0.9rem;
-  border: 2px solid rgb(255 255 255 / 70%);
-  border-radius: 0.75rem;
-  background: rgb(248 252 243 / 88%);
-  box-shadow: 0 8px 24px rgb(33 61 53 / 18%);
-  backdrop-filter: blur(8px);
+.transition-overlay[hidden] { display: none; }
+
+.hud {
+  position: absolute;
+  inset: 0.3rem 0.45rem auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: #0f380f;
+  font-size: clamp(0.45rem, 1.5vw, 0.8rem);
+  pointer-events: none;
+  text-shadow: 1px 1px #9bbc0f;
 }
 
-h1,
-p {
-  margin: 0;
-}
+.hud h1,
+.hud p { margin: 0; }
 
-h1 {
-  font-size: 1.05rem;
-}
+.hud h1 { font-size: 1em; }
 
-.hud p,
-.dialog small {
-  margin-top: 0.25rem;
-  color: #527067;
-  font-size: 0.78rem;
-}
+.hud p { opacity: 0.75; }
 
-.dialog {
-  position: fixed;
-  right: max(1rem, calc((100vw - 46rem) / 2));
-  bottom: 1.5rem;
-  left: max(1rem, calc((100vw - 46rem) / 2));
-  min-height: 8rem;
-  padding: 1.15rem 1.3rem;
-  border: 4px solid #254b42;
-  border-radius: 0.8rem;
-  background: #fffdf2;
-  box-shadow: 0 12px 40px rgb(20 40 35 / 30%);
-}
-
-.dialog strong {
-  display: block;
-  margin-bottom: 0.45rem;
-  color: #b34f50;
-}
-
-.dialog small {
-  display: block;
-  margin-top: 0.75rem;
+#connection-status {
+  max-width: 55%;
   text-align: right;
 }
 
-.hidden {
-  display: none;
+.dialog {
+  position: absolute;
+  right: 4%;
+  bottom: 4%;
+  left: 4%;
+  min-height: 30%;
+  padding: 4% 5%;
+  border: clamp(3px, 0.7vw, 6px) double #0f380f;
+  border-radius: 0.2rem;
+  background: #9bbc0f;
+  box-shadow: inset 0 0 0 2px #8bac0f;
+  font-size: clamp(0.72rem, 2.4vw, 1.35rem);
+  line-height: 1.3;
+  white-space: pre-line;
 }
 
+.dialog p,
+.dialog small { margin: 0; }
+
+.dialog small {
+  position: absolute;
+  right: 4%;
+  bottom: 5%;
+  font-size: 0.55em;
+}
+
+.hidden { display: none; }
+
+body.three-d #app {
+  width: 100vw;
+  height: 100vh;
+  aspect-ratio: auto;
+  box-shadow: none;
+}
+
+body.three-d #world { image-rendering: auto; }

@@ -1,18 +1,15 @@
-.PHONY: check compile-data import-check test backend-dev frontend-dev
+.PHONY: check source-check test backend-dev frontend-dev
 
 check:
 	.venv/bin/ruff format --check .
 	.venv/bin/ruff check .
 	.venv/bin/mypy
 	.venv/bin/pytest
-	.venv/bin/python -m tools.compile_data --check
+	.venv/bin/python -m tools.pokered_source_check
 	cd frontend && npm run typecheck && npm test && npm run build
 
-compile-data:
-	.venv/bin/python -m tools.compile_data
-
-import-check:
-	.venv/bin/python -m tools.pokered_importer --map pallet_town --check
+source-check:
+	.venv/bin/python -m tools.pokered_source_check
 
 test:
 	.venv/bin/pytest

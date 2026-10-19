@@ -15,3 +15,7 @@ frontend/*.tsbuildinfo
 
 # Reference source is intentionally never vendored.
 external/pokered/
+data/generated/
+data/yaml/imported/
+.cache/
+assets/extracted/

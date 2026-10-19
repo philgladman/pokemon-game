@@ -8,18 +8,22 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 from pydantic import TypeAdapter, ValidationError
 from starlette.staticfiles import StaticFiles
 
 from backend.app.engine.game import ActionResult, GameSession
-from backend.app.engine.repository import load_world
+from backend.app.engine.repository import default_source, load_world
 from backend.app.models.map import WorldDefinition
 from backend.app.models.protocol import ClientMessage, ErrorMessage, InteractIntent, MoveIntent
+from backend.app.models.rendering import ThreeDManifest
+from backend.app.presentation.three_d import load_three_d_manifest
+from backend.app.source.provider import ApplicationSource
 from backend.app.version import __version__
 
 logger = logging.getLogger("pokemon_game")
-client_message_adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
+client_message_adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)  # type: ignore[arg-type]
 DEFAULT_ASSET_ROOT = Path(__file__).resolve().parents[2] / "assets"
 
 
@@ -30,16 +34,61 @@ def log_event(event: str, **fields: object) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    app.state.world = load_world()
-    log_event("game_data_loaded", outcome="success", maps=len(app.state.world.maps))
+    app.state.world = load_world(app.state.source)
+    _validate_three_d_resources(
+        app.state.source,
+        app.state.world,
+        app.state.three_d_manifest,
+    )
+    log_event(
+        "game_source_loaded",
+        outcome="success",
+        maps=len(app.state.world.maps),
+        revision=app.state.world.source_revision,
+    )
     yield
+
+
+def _validate_three_d_resources(
+    source: ApplicationSource,
+    world: WorldDefinition,
+    manifest: ThreeDManifest,
+) -> None:
+    appearances = set(manifest.as_registry())
+    for map_id, map_definition in world.maps.items():
+        resources = source.three_d_resources(map_id)
+        expected_dimensions = (map_definition.height, map_definition.width)
+        actual_dimensions = (
+            len(resources.tile_appearances),
+            {len(row) for row in resources.tile_appearances},
+        )
+        if actual_dimensions != (expected_dimensions[0], {expected_dimensions[1]}):
+            raise RuntimeError(f"3D resources for {map_id} do not match logical map dimensions")
+        referenced = {
+            resources.player_appearance,
+            *resources.npc_appearances.values(),
+            *(appearance for row in resources.tile_appearances for appearance in row),
+        }
+        missing = referenced - appearances
+        if missing:
+            raise RuntimeError(
+                f"3D resources for {map_id} reference missing appearances: {sorted(missing)}"
+            )
 
 
 def create_app(
     world: WorldDefinition | None = None,
+    source: ApplicationSource | None = None,
+    three_d_manifest: ThreeDManifest | None = None,
     asset_root: Path | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Pallet Town 3D", version=__version__, lifespan=None if world else lifespan)
+    app = FastAPI(
+        title="Pokémon Red compatibility runtime",
+        version=__version__,
+        lifespan=None if world else lifespan,
+    )
+    app.state.source = source or (None if world is not None else default_source())
+    app.state.three_d_manifest = three_d_manifest or load_three_d_manifest()
     if world is not None:
         app.state.world = world
     configured_asset_root = Path(os.environ.get("POKEMON_ASSETS_PATH", DEFAULT_ASSET_ROOT))
@@ -56,6 +105,42 @@ def create_app(
     @app.get("/api/version")
     async def version() -> dict[str, str]:
         return {"version": __version__}
+
+    @app.get("/source-assets/{category}/{name}.png", response_class=FileResponse)
+    async def source_asset(category: str, name: str) -> FileResponse:
+        configured_source: ApplicationSource | None = app.state.source
+        if configured_source is None:
+            raise HTTPException(status_code=404, detail="source assets unavailable")
+        try:
+            path = configured_source.resolve_asset(category, name)
+        except RuntimeError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        return FileResponse(path)
+
+    @app.get("/api/renderers/retro/maps/{map_id}")
+    async def retro_map_resources(map_id: str) -> object:
+        configured_source: ApplicationSource | None = app.state.source
+        if configured_source is None:
+            raise HTTPException(status_code=404, detail="retro resources unavailable")
+        try:
+            return configured_source.retro_resources(map_id)
+        except RuntimeError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+    @app.get("/api/renderers/three-d/manifest")
+    async def three_d_manifest_registry() -> object:
+        configured_manifest: ThreeDManifest = app.state.three_d_manifest
+        return configured_manifest.as_registry()
+
+    @app.get("/api/renderers/three-d/maps/{map_id}")
+    async def three_d_map_resources(map_id: str) -> object:
+        configured_source: ApplicationSource | None = app.state.source
+        if configured_source is None:
+            raise HTTPException(status_code=404, detail="3D resources unavailable")
+        try:
+            return configured_source.three_d_resources(map_id)
+        except RuntimeError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
 
     @app.websocket("/ws/game")
     async def game_socket(websocket: WebSocket) -> None:
@@ -85,7 +170,7 @@ def create_app(
                     continue
 
                 if isinstance(message, MoveIntent):
-                    result = session.move(message.direction)
+                    result = session.move(message.direction, continued=message.continued)
                 elif isinstance(message, InteractIntent):
                     result = session.interact()
                 else:  # pragma: no cover - the discriminated union is exhaustive.

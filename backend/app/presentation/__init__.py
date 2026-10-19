@@ -1,0 +1,1 @@
+"""Project-owned renderer configuration."""
