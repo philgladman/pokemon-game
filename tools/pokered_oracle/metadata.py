@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from backend.app.source.pokered.parsers import parse_rgbds_constants, require_constants
@@ -31,6 +31,7 @@ class SourceMetadata:
     maps_by_value: dict[int, str]
     events: dict[str, int]
     species_by_value: dict[int, str]
+    text_ids: dict[str, int] = field(default_factory=dict)
 
     @classmethod
     def read(cls, source_root: Path) -> SourceMetadata:
@@ -59,10 +60,26 @@ class SourceMetadata:
             ),
             STARTER_SPECIES,
         )
+        text_ids: dict[str, int] = {}
+        for source_name in ("PalletTown", "RedsHouse1F", "OaksLab"):
+            script = (source_root / f"scripts/{source_name}.asm").read_text(encoding="utf-8")
+            marker = script.find("def_text_pointers")
+            if marker < 0:
+                raise OracleError(f"{source_name} has no text pointer table")
+            constants = re.findall(
+                r"^\s*dw_const\s+[A-Za-z0-9_.]+,\s*(TEXT_[A-Z0-9_]+)\s*$",
+                script[marker:],
+                re.MULTILINE,
+            )
+            for index, name in enumerate(constants, 1):
+                if name in text_ids:
+                    raise OracleError(f"duplicate source text constant: {name}")
+                text_ids[name] = index
         return cls(
             maps_by_value={value: name for name, value in map_values.items()},
             events=event_values,
             species_by_value={value: name for name, value in species_values.items()},
+            text_ids=text_ids,
         )
 
     def map_name(self, value: int) -> str:
@@ -81,6 +98,12 @@ class SourceMetadata:
                 if index // 8 < len(event_bytes) and event_bytes[index // 8] & (1 << (index % 8))
             )
         )
+
+    def text_id(self, name: str) -> int:
+        try:
+            return self.text_ids[name]
+        except KeyError as error:
+            raise OracleError(f"unknown source text constant: {name}") from error
 
 
 FACING_BY_VALUE = {0x00: "south", 0x04: "north", 0x08: "west", 0x0C: "east"}

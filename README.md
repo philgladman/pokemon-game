@@ -144,6 +144,8 @@ with `make source-check`.
 
 An optional [headless reference oracle](docs/reference-oracle.md) builds the
 canonical Red ROM and debug symbols in the ignored cache with RGBDS 1.0.4, then
-compares a clean-ROM new-game checkpoint against the Python runtime with PyBoy
-2.8.1. It is intentionally excluded from
-`make check`; run it explicitly with `make oracle-check`.
+compares the clean-ROM new-game state and all Phase 3A Pallet story branches
+against the Python runtime with PyBoy 2.8.1. Coverage includes movement timing,
+house transitions, signs/NPCs, both Oak intercept columns, lab positioning, and
+all starter/counter-starter choices. It is intentionally excluded from `make
+check`; run it explicitly with `make oracle-check`.

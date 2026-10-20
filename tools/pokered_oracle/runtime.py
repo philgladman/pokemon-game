@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+
 from backend.app.engine.game import ActionResult, GameSession
 from backend.app.models.common import Direction
 from backend.app.models.map import WorldDefinition
@@ -56,6 +58,20 @@ class RuntimeAdapter:
         self.last_input = None
         return self.session.acknowledge_transition(transition.id)
 
+    def save_checkpoint(self, name: str) -> None:
+        if not hasattr(self, "_checkpoints"):
+            self._checkpoints: dict[str, tuple[GameSession, int, str | None]] = {}
+        self._checkpoints[name] = (copy.deepcopy(self.session), self.frame, self.last_input)
+
+    def load_checkpoint(self, name: str) -> None:
+        try:
+            session, frame, last_input = self._checkpoints[name]
+        except (AttributeError, KeyError) as error:
+            raise ValueError(f"unknown runtime checkpoint: {name}") from error
+        self.session = copy.deepcopy(session)
+        self.frame = frame
+        self.last_input = last_input
+
     def snapshot(self) -> SessionSnapshot:
         return self.session.response(None, ActionResult("connected")).state
 
@@ -86,4 +102,12 @@ class RuntimeAdapter:
                 self.species_by_id.get(member.species_id, f"SPECIES_{member.species_id:02X}")
                 for member in state.party
             ),
+            party_levels=tuple(member.level for member in state.party),
+            has_starter=state.has_starter,
+            dialog_id=state.dialog.interaction_id if state.dialog is not None else None,
+            control_mode=state.control_mode,
+            choice_options=tuple(option.label for option in state.choice.options)
+            if state.choice
+            else None,
+            choice_selected=state.choice.selected_index if state.choice else None,
         )

@@ -14,8 +14,10 @@ from .artifacts import (
     resolve_rgbds,
     validate_artifacts,
 )
+from .coverage import run_phase3a_coverage
 from .emulator import OracleEmulator, PyBoyAdapter
 from .errors import OracleError
+from .gameplay import RuntimeGameplayDriver, SourceGameplayDriver, project_state
 from .metadata import SourceMetadata
 from .runtime import RuntimeAdapter
 from .scenario import NEW_GAME_SCENARIO, run_scenario
@@ -87,17 +89,46 @@ def run(argv: Sequence[str] | None = None) -> int:
             origin="pokered",
             source_revision=source.revision,
         )
+        runtime = RuntimeAdapter(world, story)
+        recorder = TraceRecorder(NEW_GAME_SCENARIO.id, "runtime", source.revision)
+        recorder.record(
+            project_state(
+                runtime.capture("new-game-ready"),
+                "new-game-ready",
+                (
+                    "map_id",
+                    "player_x",
+                    "player_y",
+                    "facing",
+                    "actors",
+                    "flags",
+                    "party",
+                    "party_levels",
+                    "has_starter",
+                ),
+            )
+        )
+        runtime_trace = recorder.finish()
+        _write_trace(source_trace, paths)
+        _write_trace(runtime_trace, paths)
+        require_matching_traces(runtime_trace, source_trace)
+
+        coverage = run_phase3a_coverage(
+            SourceGameplayDriver(emulator, world),
+            RuntimeGameplayDriver(runtime, world),
+            story,
+            source.revision,
+            lambda trace: _write_trace(trace, paths),
+        )
     finally:
         emulator.stop()
     source_path = _write_trace(source_trace, paths)
-
-    runtime = RuntimeAdapter(world, story)
-    recorder = TraceRecorder(NEW_GAME_SCENARIO.id, "runtime", source.revision)
-    recorder.record(runtime.capture("new-game-ready"))
-    runtime_trace = recorder.finish()
-    require_matching_traces(runtime_trace, source_trace)
     runtime_path = _write_trace(runtime_trace, paths)
-    print(f"oracle traces: {source_path}, {runtime_path}")
+    coverage_source_path = _write_trace(coverage.source, paths)
+    coverage_runtime_path = _write_trace(coverage.runtime, paths)
+    print(f"oracle boot traces: {source_path}, {runtime_path}")
+    print(f"oracle coverage: {', '.join(coverage.scenarios)}")
+    print(f"oracle coverage traces: {coverage_source_path}, {coverage_runtime_path}")
     return 0
 
 

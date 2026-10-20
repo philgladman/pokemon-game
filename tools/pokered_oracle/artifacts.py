@@ -38,8 +38,14 @@ REQUIRED_SYMBOLS = {
     "wEventFlags",
     "wPartyCount",
     "wPartySpecies",
+    "wPartyMon1Level",
     "wPlayerStarter",
     "wRivalStarter",
+    "wStatusFlags4",
+    "wToggleableObjectFlags",
+    "wToggleableObjectList",
+    "hTextID",
+    "DisplayTextID",
     "PrepareTitleScreen",
     "MainMenu",
     "StartNewGame",
@@ -47,6 +53,8 @@ REQUIRED_SYMBOLS = {
     "ChooseRivalName",
     "HandleMenuInput",
     "OverworldLoop",
+    "JoypadOverworld",
+    "YesNoChoice",
 }
 
 RunCommand = Callable[..., subprocess.CompletedProcess[str]]

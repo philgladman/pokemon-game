@@ -11,7 +11,9 @@ from types import SimpleNamespace
 
 import pytest
 
+from backend.app.models.common import Direction
 from backend.app.models.map import WorldDefinition
+from backend.app.source.pokered import PokeredSource
 from tools.pokered_oracle import artifacts
 from tools.pokered_oracle import cli as oracle_cli
 from tools.pokered_oracle.artifacts import (
@@ -21,9 +23,12 @@ from tools.pokered_oracle.artifacts import (
     validate_artifacts,
     validate_canonical_hash_file,
 )
+from tools.pokered_oracle.coverage import CoverageResult
 from tools.pokered_oracle.emulator import OracleEmulator, PyBoyAdapter
 from tools.pokered_oracle.errors import OracleError, OraclePrerequisiteError
+from tools.pokered_oracle.gameplay import RuntimeGameplayDriver, project_state
 from tools.pokered_oracle.metadata import SourceMetadata
+from tools.pokered_oracle.runtime import RuntimeAdapter
 from tools.pokered_oracle.scenario import Scenario, ScenarioStep, run_scenario
 from tools.pokered_oracle.symbols import Symbol, SymbolTable
 from tools.pokered_oracle.trace import (
@@ -213,6 +218,8 @@ def test_pyboy_adapter_is_headless_and_keeps_checkpoints_in_memory(
     )
 
     adapter = PyBoyAdapter(artifacts.BuildArtifacts(paths.rom, paths.symbols, "hash", True))
+    adapter.button_down("left")
+    adapter.button_up("left")
     adapter.press("a", hold_frames=2, settle_frames=3)
     adapter.save_checkpoint("ready")
     adapter.load_checkpoint("ready")
@@ -225,6 +232,8 @@ def test_pyboy_adapter_is_headless_and_keeps_checkpoints_in_memory(
         "sound_emulated": False,
     }
     assert adapter.frame == 5
+    assert ("press", "left") in pyboy.calls
+    assert ("release", "left") in pyboy.calls
     assert ("load", b"state") in pyboy.calls
     assert not list(paths.cache_root.rglob("*.state"))
 
@@ -272,6 +281,12 @@ class NeverHookPort:
     def press(self, button: str, hold_frames: int = 1, settle_frames: int = 1) -> None:
         del button
         self.frame += hold_frames + settle_frames
+
+    def button_down(self, button: str) -> None:
+        del button
+
+    def button_up(self, button: str) -> None:
+        del button
 
     def read(self, address: int) -> int:
         del address
@@ -429,6 +444,57 @@ def test_trace_write_refuses_paths_outside_cache(tmp_path: Path) -> None:
         trace.write(tmp_path / "trace.json", tmp_path / "cache")
 
 
+def test_source_metadata_derives_text_ids_from_pointer_tables() -> None:
+    root = Path(__file__).resolve().parents[1]
+
+    metadata = SourceMetadata.read(root / "external/pokered")
+
+    assert metadata.text_id("TEXT_PALLETTOWN_GIRL") == 2
+    assert metadata.text_id("TEXT_REDSHOUSE1F_TV") == 2
+    assert metadata.text_id("TEXT_OAKSLAB_CHARMANDER_POKE_BALL") < metadata.text_id(
+        "TEXT_OAKSLAB_RIVAL_ILL_TAKE_THIS_ONE"
+    )
+
+
+def test_runtime_gameplay_checkpoint_restores_session_state() -> None:
+    root = Path(__file__).resolve().parents[1]
+    source = PokeredSource(root / "external/pokered")
+    world = source.build_world()
+    runtime = RuntimeGameplayDriver(RuntimeAdapter(world, source.build_story()), world)
+    runtime.save_checkpoint("new-game")
+
+    runtime.turn(Direction.WEST)
+    assert runtime.capture("turned").facing == "west"
+    runtime.load_checkpoint("new-game")
+
+    restored = runtime.capture("restored")
+    assert (restored.map_id, restored.player_x, restored.player_y, restored.facing) == (
+        "REDS_HOUSE_2F",
+        3,
+        6,
+        "north",
+    )
+
+
+def test_semantic_projection_keeps_only_named_contract_fields() -> None:
+    state = SemanticState(
+        frame=42,
+        hook="raw",
+        map_id="PALLET_TOWN",
+        player_x=3,
+        walk_counter=7,
+        dialog_id="town-sign",
+    )
+
+    projected = project_state(state, "sign-open", ("dialog_id",))
+
+    assert projected.frame == 42
+    assert projected.hook == "sign-open"
+    assert projected.dialog_id == "town-sign"
+    assert projected.map_id is None
+    assert projected.walk_counter is None
+
+
 class FakeSource:
     revision = "a" * 40
 
@@ -476,6 +542,8 @@ def configure_cli_fakes(
     monkeypatch.setattr(oracle_cli, "PyBoyAdapter", lambda _: object())
     monkeypatch.setattr(oracle_cli, "OracleEmulator", lambda *args: FakeEmulator())
     monkeypatch.setattr(oracle_cli, "RuntimeAdapter", FakeRuntime)
+    monkeypatch.setattr(oracle_cli, "SourceGameplayDriver", lambda *args: object())
+    monkeypatch.setattr(oracle_cli, "RuntimeGameplayDriver", lambda *args: object())
     source_trace = SemanticTrace(
         "new-game-ready",
         "pokered",
@@ -495,6 +563,17 @@ def configure_cli_fakes(
         ),
     )
     monkeypatch.setattr(oracle_cli, "run_scenario", lambda *args, **kwargs: source_trace)
+    coverage_source = SemanticTrace("coverage", "pokered", "a" * 40, ())
+    coverage_runtime = SemanticTrace("coverage", "runtime", "a" * 40, ())
+    monkeypatch.setattr(
+        oracle_cli,
+        "run_phase3a_coverage",
+        lambda *args: CoverageResult(
+            runtime=coverage_runtime,
+            source=coverage_source,
+            scenarios=("movement/held-input",),
+        ),
+    )
     monkeypatch.setattr(
         oracle_cli,
         "_write_trace",
@@ -503,11 +582,30 @@ def configure_cli_fakes(
 
 
 def test_cli_check_compares_common_new_game_checkpoint(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     configure_cli_fakes(monkeypatch, tmp_path)
 
     assert oracle_cli.run(["check", "--source-root", str(tmp_path)]) == 0
+    assert "oracle coverage: movement/held-input" in capsys.readouterr().out
+
+
+def test_cli_check_propagates_phase3a_contract_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    configure_cli_fakes(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        oracle_cli,
+        "run_phase3a_coverage",
+        lambda *args: (_ for _ in ()).throw(
+            OracleError("semantic trace mismatch: starter-squirtle-complete")
+        ),
+    )
+
+    with pytest.raises(OracleError, match="starter-squirtle-complete"):
+        oracle_cli.run(["check", "--source-root", str(tmp_path)])
 
 
 def test_cli_check_fails_on_semantic_mismatch(
