@@ -6,6 +6,13 @@
   pinned Red ROM with RGBDS 1.0.4 in an ignored cache, verifies its canonical
   SHA-1 and symbols, and records deterministic semantic traces independently of
   the normal application checks.
+- Expanded the oracle across all Phase 3A behavior: source-timed held movement,
+  house transitions, Pallet signs and wandering NPCs, both Oak-intercept
+  columns, lab entry/positioning, and every starter/counter-starter branch using
+  shared semantic drivers and in-memory source/runtime checkpoints.
+- Compared complete observed Oak/lab movement paths against runtime cues, both
+  house exit columns and their warp policy, and starter choice-open state; added
+  mutation regressions and retained partial oracle traces on failed checks.
 - Added the source-backed Pallet opening story from the canonical new-game warp
   through starter selection, stopping at a typed boundary before the rival battle.
 - Added an immutable, provenance-bearing trigger/condition/command story graph

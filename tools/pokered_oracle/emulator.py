@@ -22,6 +22,10 @@ class EmulatorPort(Protocol):
 
     def press(self, button: str, hold_frames: int = 1, settle_frames: int = 1) -> None: ...
 
+    def button_down(self, button: str) -> None: ...
+
+    def button_up(self, button: str) -> None: ...
+
     def read(self, address: int) -> int: ...
 
     def save_checkpoint(self, name: str) -> None: ...
@@ -79,6 +83,12 @@ class PyBoyAdapter:
         self._pyboy.button_release(button)
         self.tick(settle_frames)
 
+    def button_down(self, button: str) -> None:
+        self._pyboy.button_press(button)
+
+    def button_up(self, button: str) -> None:
+        self._pyboy.button_release(button)
+
     def read(self, address: int) -> int:
         return cast(int, self._pyboy.memory[address])
 
@@ -116,14 +126,35 @@ class OracleEmulator:
         self._last_input: str | None = None
         self._hook_hits: dict[str, int] = {}
         self._hooked_labels: set[str] = set()
+        self._last_display_text_id: int | None = None
+        self.observer: Callable[[SemanticState], None] | None = None
 
     def tick(self, frames: int = 1) -> None:
-        self.port.tick(frames)
+        if self.observer is None:
+            self.port.tick(frames)
+        else:
+            for _ in range(frames):
+                self.port.tick()
+                self.observer(self.capture("observed-frame"))
         self._last_input = None
 
     def press(self, button: str, hold_frames: int = 1, settle_frames: int = 1) -> None:
         self._last_input = button
-        self.port.press(button, hold_frames, settle_frames)
+        if self.observer is None:
+            self.port.press(button, hold_frames, settle_frames)
+        else:
+            self.button_down(button)
+            self.tick(hold_frames)
+            self.button_up(button)
+            self.tick(settle_frames)
+
+    def button_down(self, button: str) -> None:
+        self._last_input = button
+        self.port.button_down(button)
+
+    def button_up(self, button: str) -> None:
+        self.port.button_up(button)
+        self._last_input = None
 
     def wait_until(
         self,
@@ -140,6 +171,8 @@ class OracleEmulator:
             if predicate(self):
                 return
             self.tick(min(step_frames, deadline - self.port.frame))
+        if predicate(self):
+            return
         state = self.capture(f"timeout:{label}")
         raise OracleError(
             f"timed out after {max_frames} frames waiting for {label}; "
@@ -164,6 +197,15 @@ class OracleEmulator:
                 f"player=({state.player_x},{state.player_y}) facing={state.facing} "
                 f"script={state.map_script}"
             )
+
+    def symbol_hits(self, label: str) -> int:
+        """Return the number of observed calls, registering the hook if needed."""
+
+        return self._watch_symbol(label)
+
+    @property
+    def last_display_text_id(self) -> int | None:
+        return self._last_display_text_id
 
     def press_until_symbol(
         self,
@@ -199,6 +241,8 @@ class OracleEmulator:
 
             def record_hit(_: object) -> None:
                 self._hook_hits[label] += 1
+                if label == "DisplayTextID":
+                    self._last_display_text_id = self.port.read(self.symbols["hTextID"].address)
 
             self.port.hook(symbol.bank, symbol.address, record_hit)
             self._hooked_labels.add(label)
@@ -221,6 +265,7 @@ class OracleEmulator:
             if (species := self.metadata.species_name(self.port.read(party_base + offset)))
             is not None
         )
+        party_levels = (self._read("wPartyMon1Level"),) if party_count > 0 else ()
         event_base = self.symbols["wEventFlags"].address
         event_size = max(self.metadata.events.values(), default=0) // 8 + 1
         event_bytes = bytes(self.port.read(event_base + offset) for offset in range(event_size))
@@ -243,6 +288,8 @@ class OracleEmulator:
             player_starter=self.metadata.species_name(self._read("wPlayerStarter")),
             rival_starter=self.metadata.species_name(self._read("wRivalStarter")),
             party=party,
+            party_levels=party_levels,
+            has_starter=bool(self._read("wStatusFlags4") & (1 << 3)),
         )
 
     def _read(self, label: str) -> int:
@@ -257,16 +304,31 @@ class OracleEmulator:
         actors: list[ActorTrace] = []
         for npc in map_definition.npcs:
             offset = npc.object_index * 16
+            hidden = self._actor_hidden(npc.object_index)
             actors.append(
                 ActorTrace(
                     id=npc.id,
                     x=self.port.read(state2 + offset + 5) - 4,
                     y=self.port.read(state2 + offset + 4) - 4,
                     facing=normalize_facing(self.port.read(state1 + offset + 9)),
-                    visible=self.port.read(state1 + offset) != 0,
+                    visible=not hidden and self.port.read(state1 + offset) != 0,
                 )
             )
         return tuple(actors)
+
+    def _actor_hidden(self, object_index: int) -> bool:
+        toggle_list = self.symbols["wToggleableObjectList"].address
+        toggle_flags = self.symbols["wToggleableObjectFlags"].address
+        for offset in range(0, 64, 2):
+            sprite_id = self.port.read(toggle_list + offset)
+            if sprite_id == 0xFF:
+                return False
+            flag_index = self.port.read(toggle_list + offset + 1)
+            if sprite_id == object_index:
+                return bool(
+                    self.port.read(toggle_flags + flag_index // 8) & (1 << (flag_index % 8))
+                )
+        raise OracleError("toggleable object list has no sentinel")
 
     def stop(self) -> None:
         self.port.stop()

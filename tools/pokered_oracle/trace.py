@@ -20,6 +20,20 @@ class ActorTrace:
 
 
 @dataclass(frozen=True)
+class MotionPoint:
+    map_id: str
+    x: int | None
+    y: int | None
+    visible: bool = True
+
+
+@dataclass(frozen=True)
+class MotionTrack:
+    actor_id: str
+    points: tuple[MotionPoint, ...]
+
+
+@dataclass(frozen=True)
 class SemanticState:
     frame: int
     hook: str
@@ -38,9 +52,18 @@ class SemanticState:
     player_starter: str | None = None
     rival_starter: str | None = None
     party: tuple[str, ...] | None = None
+    party_levels: tuple[int, ...] | None = None
+    has_starter: bool | None = None
+    dialog_id: str | None = None
+    control_mode: str | None = None
+    choice_options: tuple[str, ...] | None = None
+    choice_selected: int | None = None
+    motion: tuple[MotionTrack, ...] | None = None
+    compared_fields: tuple[str, ...] | None = None
 
     def semantic_values(self, *, include_frame: bool = False) -> dict[str, object]:
         values = asdict(self)
+        values.pop("compared_fields")
         if not include_frame:
             values.pop("frame")
         return values
@@ -130,7 +153,13 @@ def compare_traces(
         expected_values = expected_state.semantic_values(include_frame=compare_frames)
         actual_values = actual_state.semantic_values(include_frame=compare_frames)
         for field_name, expected_value in expected_values.items():
-            if expected_value is None:
+            if expected_state.compared_fields is not None:
+                if field_name not in expected_state.compared_fields and field_name not in {
+                    "hook",
+                    "frame",
+                }:
+                    continue
+            elif expected_value is None:
                 continue
             actual_value = actual_values[field_name]
             if expected_value != actual_value:

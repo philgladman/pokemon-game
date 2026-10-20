@@ -41,14 +41,55 @@ canonical Red ROM SHA-1
 `ea9bcae617fdf159b045185467ae58b2e4a48b9a`. `DEBUG=1` asks RGBDS to emit the
 symbol file; it does not enable a modified debug ROM.
 
-The tool then starts PyBoy 2.8.1 with its null window, drives a clean cartridge
-through the normal new-game flow using pinned debug symbols, and waits for the
-first settled Red's House 2F overworld state. It compares that checkpoint with a
-new Python `GameSession`; a map, position, facing, actor, flag, starter, or party
-mismatch fails the command. Matching source and runtime traces are written under
-`.cache/oracle/traces/`. All waits are frame-bounded and report the last
-normalized map, player, facing, and script state on failure. Frames are retained
-for diagnostics but are not treated as equivalent wall-clock timing.
+The tool then starts PyBoy 2.8.1 with its null window and drives a clean
+cartridge through the normal new-game flow using pinned debug symbols. After
+the initial Red's House 2F comparison, the same semantic gameplay-driver
+contract exercises both PyBoy and a new Python `GameSession` through:
+
+- changed-direction taps, held-input resampling, continuous movement, and
+  same-facing fresh presses;
+- Red's House stairs, exit columns 2 and 3 with reentry after each, Mom, and the TV;
+- all four Pallet signs plus the live wandering girl and fisher;
+- both source Oak-intercept columns and the complete escort/lab-entry sequence;
+- Charmander, Squirtle, and Bulbasaur No/Yes choices, party grants, and each
+  rival counter-selection, stopping before the battle boundary.
+
+Named contracts compare only stable gameplay state relevant to each checkpoint:
+map/player state, interaction identity and lifecycle, selected actor
+position/visibility/facing, event flags, starter semantics, and party species
+and level. Wandering NPC idle coordinates, incidental sprite facings, script
+scratch bytes, and absolute emulator frame numbers are not treated as gameplay
+equivalence. Movement timing is checked separately against the source cadence:
+roughly two Game Boy frames to resample a held changed direction and sixteen
+frames per tile, each with a one-frame tolerance.
+
+The timing check reads the browser's movement duration and held-turn resample
+constants and converts them to Game Boy frames. A fresh changed-direction runtime
+input must return a turn without moving before continued input is sent.
+
+Oak approach, column correction, escort, and lab entry also compare complete
+ordered tile paths for each scripted actor and the player, including visibility
+changes. Source paths are observed frame by frame. The synchronized outdoor Oak
+engine leaves NPC map coordinates unchanged, so its path comes from completed
+live movement-buffer entries and index advances. Runtime paths expand the actual
+movement cues before acknowledging them. Matching endpoints alone cannot pass.
+
+During source warps, the destination map ID precedes coordinate installation.
+Only an observed `WarpFound2` call plus a matching source door and destination
+allows that door coordinate to be attributed to the departing map. The runtime
+performs ordinary door warps atomically: its intermediate exterior arrival and
+automatic step are a projection of the existing warp metadata/policy, compared
+against source observations, rather than separately observed runtime states.
+Choice-open checkpoints compare menu options, cursor, unselected starter/party
+state, and ball visibility before both No and Yes. Explicitly selected absent
+values are compared as well as present values.
+
+PyBoy save states and deep-copied runtime sessions provide in-memory checkpoints
+at new game, Pallet exploration, and the lab choice. Matching source/runtime
+traces are written under `.cache/oracle/traces/`, including fresh partial coverage
+traces on failure. All waits are frame-bounded and
+report normalized map, player, facing, and script state on failure. A mismatch
+or timeout exits nonzero and names the failing contract.
 
 To build and validate the local artifacts without launching PyBoy:
 
