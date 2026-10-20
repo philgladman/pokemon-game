@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ThreeDResourceLoader } from "../src/renderers/three_d/resources";
-import { WorldRenderer } from "../src/renderers/three_d/WorldRenderer";
+import {
+  PlayerMotionAuthority,
+  WorldRenderer,
+} from "../src/renderers/three_d/WorldRenderer";
 import type { GameRenderer } from "../src/types";
 
 describe("ThreeDResourceLoader", () => {
@@ -49,5 +52,17 @@ describe("ThreeDResourceLoader", () => {
     const update: GameRenderer["update"] = WorldRenderer.prototype.update;
 
     expect(update.constructor.name).toBe("AsyncFunction");
+  });
+
+  it("gives scripted player motion authority through the acknowledgement roundtrip", () => {
+    const authority = new PlayerMotionAuthority();
+
+    authority.observeSnapshot(true);
+    expect(authority.normalInterpolationAllowed()).toBe(false);
+    authority.snapshotApplied(true);
+    authority.observeSnapshot(false);
+    expect(authority.normalInterpolationAllowed()).toBe(false);
+    authority.snapshotApplied(false);
+    expect(authority.normalInterpolationAllowed()).toBe(true);
   });
 });

@@ -17,7 +17,9 @@ from backend.app.models.map import (
     WorldDefinition,
 )
 from backend.app.models.rendering import RetroMapResources, SourceAsset, ThreeDMapResources
+from backend.app.models.story import StoryDefinition
 
+from .pallet_story import build_pallet_story
 from .parsers import (
     ParseError,
     expand_blocks,
@@ -31,6 +33,7 @@ from .parsers import (
     parse_initial_visibility,
     parse_map_metadata,
     parse_map_objects,
+    parse_new_game_warp,
     parse_sprite_assets,
     source_facing,
 )
@@ -78,6 +81,7 @@ class PokeredSource:
         self._expected_tree = expected_tree
         self._integrity_validated = False
         self._world: WorldDefinition | None = None
+        self._story: StoryDefinition | None = None
         self._asset_allowlist: dict[tuple[str, str], Path] = {}
         self._retro_resources: dict[str, RetroMapResources] = {}
         self._three_d_resources: dict[str, ThreeDMapResources] = {}
@@ -108,6 +112,18 @@ class PokeredSource:
                 f"unable to build runtime from pret/pokered: {error}"
             ) from error
         return self._world
+
+    def build_story(self) -> StoryDefinition:
+        if self._story is not None:
+            return self._story
+        world = self.build_world()
+        try:
+            self._story = build_pallet_story(self._root, self.revision, world)
+        except (OSError, ParseError, ValueError) as error:
+            raise PokeredSourceError(
+                f"unable to build Pallet story from pret/pokered: {error}"
+            ) from error
+        return self._story
 
     def resolve_asset(self, category: str, name: str) -> Path:
         if self._world is None:
@@ -170,8 +186,9 @@ class PokeredSource:
             )
             maps[map_definition.id] = map_definition
 
-        start_map = "PALLET_TOWN"
-        player_spawn = self._parse_start_position(start_map)
+        start_map, player_spawn = parse_new_game_warp(
+            self._read_text("data/maps/special_warps.asm")
+        )
         maps[start_map] = maps[start_map].model_copy(update={"player_spawn": player_spawn})
         return WorldDefinition(
             start_map=start_map,
@@ -313,7 +330,7 @@ class PokeredSource:
                 for row in collision_tile_ids
             ],
             player_appearance="character.player",
-            npc_appearances={npc.id: "character.npc" for npc in npcs if npc.visible},
+            npc_appearances={npc.id: "character.npc" for npc in npcs},
         )
         return map_definition
 

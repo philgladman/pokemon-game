@@ -13,6 +13,7 @@ import {
   movementAdvanceAt,
   pixelSteppedPosition,
 } from "../../movement";
+import { animateMovementCue, movementTrackState } from "../../scriptedMovement";
 
 const VIEW_WIDTH = 160;
 const VIEW_HEIGHT = 144;
@@ -101,8 +102,12 @@ export function shouldAnimatePlayerMove(
   from: { x: number; y: number },
   to: { x: number; y: number },
   resourcesChanged = false,
+  scriptedCommit = false,
 ): boolean {
-  return previousMapId === nextMapId && !resourcesChanged && isAdjacentStep(from, to);
+  return previousMapId === nextMapId
+    && !resourcesChanged
+    && !scriptedCommit
+    && isAdjacentStep(from, to);
 }
 
 interface PlayerMotion {
@@ -177,6 +182,8 @@ export class RetroRenderer implements GameRenderer {
   private animationFrame: number | null = null;
   private nextStepStartingPhase: StandingPhase = 0;
   private standingPhase: StandingPhase = 0;
+  private scriptedElapsed: number | null = null;
+  private scriptedCueId: string | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     canvas.width = VIEW_WIDTH;
@@ -193,6 +200,10 @@ export class RetroRenderer implements GameRenderer {
   ): Promise<void> {
     const previousSnapshot = this.snapshot;
     this.snapshot = snapshot;
+    if (snapshot.movement_cue?.id !== this.scriptedCueId) {
+      this.scriptedCueId = snapshot.movement_cue?.id ?? null;
+      this.scriptedElapsed = snapshot.movement_cue === null ? null : 0;
+    }
     this.resources = this.resources?.map_id === snapshot.map.id ? this.resources : null;
     if (presentation.resetGait) {
       this.nextStepStartingPhase = 0;
@@ -205,6 +216,8 @@ export class RetroRenderer implements GameRenderer {
         snapshot.map.id,
         previousSnapshot.player.position,
         snapshot.player.position,
+        false,
+        previousSnapshot.movement_cue !== null,
       )
     ) {
       const startingPhase = this.nextStepStartingPhase;
@@ -226,9 +239,9 @@ export class RetroRenderer implements GameRenderer {
       const assets = [
         resources.tileset_asset,
         resources.player_asset,
-        ...snapshot.map.npcs
-          .filter((npc) => npc.visible)
-          .map((npc) => resources.sprite_assets[npc.sprite])
+        ...snapshot.map.actors
+          .filter((actor) => actor.visible)
+          .map((actor) => resources.sprite_assets[actor.sprite])
           .filter((asset): asset is SourceAsset => asset !== undefined),
       ];
       await Promise.all(assets.map((asset) => this.images.load(asset)));
@@ -240,6 +253,14 @@ export class RetroRenderer implements GameRenderer {
       }
       this.resources = resources;
       this.draw(snapshot);
+      if (snapshot.movement_cue !== null) {
+        await animateMovementCue(snapshot.movement_cue, (elapsed) => {
+          this.scriptedElapsed = elapsed;
+          this.draw(snapshot);
+        });
+      } else {
+        this.scriptedElapsed = null;
+      }
     } catch (error: unknown) {
       console.error(error);
       this.draw(snapshot);
@@ -252,12 +273,25 @@ export class RetroRenderer implements GameRenderer {
     this.context.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
     const motion = this.playerMotion;
     const elapsed = motion === null ? MOVE_DURATION_MS : now - motion.startedAt;
-    const playerPosition =
+    let playerPosition =
       motion === null
         ? snapshot.player.position
         : pixelSteppedPosition(motion.from, motion.to, elapsed);
+    const cue = snapshot.movement_cue;
+    const playerTrack = cue?.tracks.find((track) => track.actor_id === "player");
+    const scriptedPlayer = playerTrack !== undefined && this.scriptedElapsed !== null
+      ? movementTrackState(playerTrack, this.scriptedElapsed, true)
+      : null;
+    if (scriptedPlayer !== null) playerPosition = scriptedPlayer.position;
+    const playerFacing = scriptedPlayer?.facing ?? snapshot.player.facing;
     const playerFrame =
-      motion === null
+      scriptedPlayer !== null
+        ? spriteFrameAtElapsed(
+            playerFacing,
+            scriptedPlayer.stepElapsedMs,
+            scriptedPlayer.stepIndex % 2 === 0 ? 0 : 2,
+          )
+        : motion === null
         ? spriteFrameForPhase(snapshot.player.facing, this.standingPhase)
         : spriteFrameAtElapsed(snapshot.player.facing, elapsed, motion.startingPhase);
     const origin = viewportOrigin(
@@ -268,10 +302,25 @@ export class RetroRenderer implements GameRenderer {
     );
     this.drawMap(snapshot, origin.x, origin.y);
     const resources = this.resources;
-    for (const npc of snapshot.map.npcs) {
-      const asset = resources?.sprite_assets[npc.sprite];
-      if (npc.visible && asset !== undefined) {
-        this.drawSprite(asset, npc.position.x, npc.position.y, npc.facing, origin.x, origin.y);
+    for (const actor of snapshot.map.actors) {
+      const asset = resources?.sprite_assets[actor.sprite];
+      if (actor.visible && asset !== undefined) {
+        const track = cue?.tracks.find((candidate) => candidate.actor_id === actor.id);
+        const scriptedActor = track !== undefined && this.scriptedElapsed !== null
+          ? movementTrackState(track, this.scriptedElapsed, true)
+          : null;
+        const position = scriptedActor !== null
+          ? scriptedActor.position
+          : actor.position;
+        const facing = scriptedActor?.facing ?? actor.facing;
+        const frame = scriptedActor === null
+          ? undefined
+          : spriteFrameAtElapsed(
+              facing,
+              scriptedActor.stepElapsedMs,
+              scriptedActor.stepIndex % 2 === 0 ? 0 : 2,
+            );
+        this.drawSprite(asset, position.x, position.y, facing, origin.x, origin.y, frame);
       }
     }
     if (resources !== null) {
@@ -279,7 +328,7 @@ export class RetroRenderer implements GameRenderer {
         resources.player_asset,
         playerPosition.x,
         playerPosition.y,
-        snapshot.player.facing,
+        playerFacing,
         origin.x,
         origin.y,
         playerFrame,

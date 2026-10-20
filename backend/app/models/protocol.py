@@ -5,7 +5,8 @@ from typing import Annotated, Literal
 from pydantic import Field
 
 from .common import Direction, Position, StrictModel
-from .map import MapDefinition
+from .pokemon import PartyMember
+from .story import ChoiceState, ControlMode, MapState, MovementCue, TransitionState
 
 
 class MoveIntent(StrictModel):
@@ -20,7 +21,29 @@ class InteractIntent(StrictModel):
     request_id: str = Field(min_length=1, max_length=100)
 
 
-ClientMessage = Annotated[MoveIntent | InteractIntent, Field(discriminator="type")]
+class ChoiceIntent(StrictModel):
+    type: Literal["choice"]
+    request_id: str = Field(min_length=1, max_length=100)
+    choice_id: str = Field(min_length=1, max_length=100)
+    intent: Literal["previous", "next", "confirm", "cancel"]
+
+
+class AcknowledgeCueIntent(StrictModel):
+    type: Literal["acknowledge_cue"]
+    request_id: str = Field(min_length=1, max_length=100)
+    cue_id: str = Field(min_length=1, max_length=100)
+
+
+class AcknowledgeTransitionIntent(StrictModel):
+    type: Literal["acknowledge_transition"]
+    request_id: str = Field(min_length=1, max_length=100)
+    transition_id: str = Field(min_length=1, max_length=100)
+
+
+ClientMessage = Annotated[
+    MoveIntent | InteractIntent | ChoiceIntent | AcknowledgeCueIntent | AcknowledgeTransitionIntent,
+    Field(discriminator="type"),
+]
 Action = Literal[
     "connected",
     "moved",
@@ -32,6 +55,13 @@ Action = Literal[
     "dialog_closed",
     "nothing_to_interact",
     "unsupported_interaction",
+    "choice_opened",
+    "choice_updated",
+    "choice_closed",
+    "scripted_movement",
+    "movement_completed",
+    "transition_completed",
+    "phase_boundary",
 ]
 
 
@@ -48,9 +78,18 @@ class DialogState(StrictModel):
 
 
 class SessionSnapshot(StrictModel):
-    map: MapDefinition
+    map: MapState
     player: PlayerState
     dialog: DialogState | None
+    choice: ChoiceState | None
+    control_mode: ControlMode
+    movement_cue: MovementCue | None
+    transition: TransitionState | None
+    flags: list[str]
+    has_starter: bool
+    player_starter: str | None
+    rival_starter: str | None
+    party: list[PartyMember]
 
 
 class StateMessage(StrictModel):

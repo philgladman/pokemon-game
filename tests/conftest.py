@@ -13,6 +13,7 @@ from backend.app.models.map import (
     WarpDefinition,
     WorldDefinition,
 )
+from backend.app.models.story import StoryDefinition
 from backend.app.source.pokered import PokeredSource
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -121,3 +122,9 @@ def pokered_world() -> WorldDefinition:
     if not (source_root / ".git").exists():
         pytest.skip("pret/pokered checkout is not available")
     return PokeredSource(source_root).build_world()
+
+
+@pytest.fixture(scope="session")
+def pokered_story(pokered_world: WorldDefinition) -> StoryDefinition:
+    del pokered_world
+    return PokeredSource(PROJECT_ROOT / "external/pokered").build_story()

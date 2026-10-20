@@ -35,7 +35,8 @@ const browserClock: InputClock = {
 
 type PendingIntent =
   | { requestId: string; type: "move"; direction: Direction; continued: boolean }
-  | { requestId: string; type: "interact" };
+  | { requestId: string; type: "interact" }
+  | { requestId: string; type: "choice" };
 type ContinuationKind = PendingIntent["type"];
 
 export class HeldInputController {
@@ -52,6 +53,8 @@ export class HeldInputController {
   private interactionQueued = false;
   private dialogOpen = false;
   private enabled = true;
+  private controlMode: StateMessage["state"]["control_mode"] = "free";
+  private choiceId: string | null = null;
 
   constructor(
     private readonly send: (message: ClientMessage) => boolean,
@@ -60,6 +63,35 @@ export class HeldInputController {
   ) {}
 
   keyDown(code: string, repeated = false): boolean {
+    if (this.controlMode === "choice") {
+      const intent = {
+        ArrowUp: "previous",
+        KeyW: "previous",
+        ArrowDown: "next",
+        KeyS: "next",
+        KeyE: "confirm",
+        Space: "confirm",
+        Escape: "cancel",
+        Backspace: "cancel",
+      }[code] as "previous" | "next" | "confirm" | "cancel" | undefined;
+      if (intent === undefined) return false;
+      if (!this.enabled || repeated || this.pending !== null || this.choiceId === null) return true;
+      const requestId = this.requestId();
+      if (
+        this.trySend({
+          type: "choice",
+          request_id: requestId,
+          choice_id: this.choiceId,
+          intent,
+        })
+      ) {
+        this.pending = { requestId, type: "choice" };
+      }
+      return true;
+    }
+    if (this.controlMode !== "free" && this.controlMode !== "dialog") {
+      return codeDirections[code] !== undefined || interactionCodes.has(code);
+    }
     const direction = codeDirections[code];
     if (direction !== undefined) {
       if (!this.enabled) return true;
@@ -119,7 +151,12 @@ export class HeldInputController {
         message.action === "dialog_closed",
     };
     this.dialogOpen = message.state.dialog !== null;
+    this.controlMode = message.state.control_mode;
+    this.choiceId = message.state.choice?.instance_id ?? null;
     if (this.dialogOpen) {
+      this.clearDirectionalInput();
+      this.clearQueuedInteraction();
+    } else if (this.controlMode !== "free") {
       this.clearDirectionalInput();
       this.clearQueuedInteraction();
     }
@@ -168,6 +205,8 @@ export class HeldInputController {
     this.interactionQueued = false;
     this.pending = null;
     this.dialogOpen = false;
+    this.controlMode = "free";
+    this.choiceId = null;
     this.nextMoveAt = 0;
     this.lastMoveWasSuccessful = false;
     this.sequenceActive = false;

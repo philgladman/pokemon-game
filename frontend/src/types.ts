@@ -18,15 +18,12 @@ export interface TextInteraction {
   reason: string | null;
 }
 
-export interface NPCDefinition {
+export interface ActorState {
   id: string;
-  object_index: number;
   position: Position;
   facing: Direction;
-  movement: string;
   visible: boolean;
   sprite: string;
-  interaction: TextInteraction;
 }
 
 export interface RetroMapResources {
@@ -56,7 +53,7 @@ export interface MapDefinition {
   width: number;
   height: number;
   walkable: boolean[][];
-  npcs: NPCDefinition[];
+  actors: ActorState[];
 }
 
 export interface PlayerState {
@@ -71,10 +68,57 @@ export interface DialogState {
   page_index: number;
 }
 
+export type ControlMode =
+  | "free"
+  | "dialog"
+  | "choice"
+  | "scripted_movement"
+  | "transition"
+  | "phase_boundary";
+
+export interface ChoiceState {
+  id: string;
+  instance_id: string;
+  prompt: string;
+  options: { id: string; label: string }[];
+  selected_index: number;
+  cancel_index: number;
+}
+
+export interface MovementTrack {
+  actor_id: string;
+  start: Position;
+  steps: Direction[];
+}
+
+export interface MovementCue {
+  id: string;
+  tracks: MovementTrack[];
+}
+
+export interface TransitionState {
+  id: string;
+}
+
+export interface PartyMember {
+  species_id: number;
+  name: string;
+  level: number;
+}
+
 export interface SessionSnapshot {
   map: MapDefinition;
   player: PlayerState;
   dialog: DialogState | null;
+  choice: ChoiceState | null;
+  control_mode: ControlMode;
+  movement_cue: MovementCue | null;
+  transition: TransitionState | null;
+  flags: string[];
+  has_starter: boolean;
+  player_starter: string | null;
+  rival_starter: string | null;
+  party: PartyMember[];
 }
 
 export interface StateMessage {
@@ -125,4 +169,16 @@ export interface AppearanceDefinition {
 export type ServerMessage = StateMessage | ErrorMessage;
 export type ClientMessage =
   | { type: "move"; request_id: string; direction: Direction; continued: boolean }
-  | { type: "interact"; request_id: string };
+  | { type: "interact"; request_id: string }
+  | {
+      type: "choice";
+      request_id: string;
+      choice_id: string;
+      intent: "previous" | "next" | "confirm" | "cancel";
+    }
+  | { type: "acknowledge_cue"; request_id: string; cue_id: string }
+  | {
+      type: "acknowledge_transition";
+      request_id: string;
+      transition_id: string;
+    };

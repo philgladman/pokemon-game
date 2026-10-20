@@ -5,6 +5,7 @@ from typing import Protocol
 
 from backend.app.models.map import WorldDefinition
 from backend.app.models.rendering import RetroMapResources, ThreeDMapResources
+from backend.app.models.story import StoryDefinition
 
 
 class GameSource(Protocol):
@@ -17,6 +18,8 @@ class GameSource(Protocol):
     def revision(self) -> str: ...
 
     def build_world(self) -> WorldDefinition: ...
+
+    def build_story(self) -> StoryDefinition: ...
 
 
 class SourceAssetProvider(Protocol):

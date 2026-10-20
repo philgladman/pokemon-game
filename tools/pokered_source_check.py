@@ -14,8 +14,13 @@ def main() -> None:
     parser.add_argument("--source-root", type=Path, default=default_source_root())
     arguments = parser.parse_args()
 
-    world = PokeredSource(arguments.source_root).build_world()
-    print(f"validated {len(world.maps)} maps from pret/pokered {world.source_revision}")
+    source = PokeredSource(arguments.source_root)
+    world = source.build_world()
+    story = source.build_story()
+    print(
+        f"validated {len(world.maps)} maps and {len(story.starters)} starters "
+        f"from pret/pokered {world.source_revision}"
+    )
 
 
 if __name__ == "__main__":

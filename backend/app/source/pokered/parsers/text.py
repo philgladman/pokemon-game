@@ -44,6 +44,15 @@ def parse_direct_text(reference: str, scripts: str, texts: str) -> ParsedText:
     return ParsedText(reference, "direct", tuple(pages), None, source_symbol)
 
 
+def parse_source_text(content: str, symbol: str) -> tuple[str, ...]:
+    """Parse a named far-text body used by a focused story adapter."""
+
+    pages = _parse_text_body(_label_body(content, symbol))
+    if not pages:
+        raise ParseError(f"source text {symbol} contains no supported text")
+    return tuple(pages)
+
+
 def _label_body(content: str, label: str) -> str:
     match = re.search(rf"^{re.escape(label)}::?\s*$", content, re.MULTILINE)
     if match is None:

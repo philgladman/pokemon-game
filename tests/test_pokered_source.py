@@ -23,6 +23,12 @@ from backend.app.source.pokered.source import PINNED_REVISION
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _pallet_exploration_world(world: WorldDefinition) -> WorldDefinition:
+    """Keep Phase 2 exploration assertions independent from canonical NewGameWarp."""
+
+    return world.model_copy(update={"start_map": "PALLET_TOWN", "player_spawn": Position(x=5, y=6)})
+
+
 def _complete_direction(session: GameSession, direction: Direction) -> ActionResult:
     result = session.move(direction, continued=False)
     if result.action == "turned":
@@ -206,7 +212,9 @@ def test_pinned_pallet_source_builds_all_five_maps(pokered_world: WorldDefinitio
     }
     pallet = pokered_world.maps["PALLET_TOWN"]
     assert (pallet.width, pallet.height) == (20, 18)
-    assert pallet.player_spawn == pokered_world.player_spawn
+    assert pokered_world.start_map == "REDS_HOUSE_2F"
+    assert pokered_world.player_spawn == Position(x=3, y=6)
+    assert pokered_world.maps["REDS_HOUSE_2F"].player_spawn == Position(x=3, y=6)
     assert pallet.npc_at(pallet.npcs[1].position) is not None
     assert pallet.npcs[1].interaction.template_pages[0] == "I'm raising\n#MON too!"
     assert pallet.background_events[0].interaction.template_pages[0] == "OAK #MON\nRESEARCH LAB"
@@ -237,15 +245,13 @@ def test_three_d_projection_is_source_derived_and_renderer_separate(
     assert resources.map_id == "PALLET_TOWN"
     assert len(resources.tile_appearances) == world.maps["PALLET_TOWN"].height
     assert all(len(row) == world.maps["PALLET_TOWN"].width for row in resources.tile_appearances)
-    assert set(resources.npc_appearances) == {
-        npc.id for npc in world.maps["PALLET_TOWN"].npcs if npc.visible
-    }
+    assert set(resources.npc_appearances) == {npc.id for npc in world.maps["PALLET_TOWN"].npcs}
 
 
 def test_source_npc_can_be_reached_and_displays_original_text(
     pokered_world: WorldDefinition,
 ) -> None:
-    session = GameSession(pokered_world)
+    session = GameSession(_pallet_exploration_world(pokered_world))
     _complete_direction(session, Direction.SOUTH)
     _complete_direction(session, Direction.SOUTH)
     _complete_direction(session, Direction.WEST)
@@ -335,7 +341,7 @@ def test_pallet_building_warps_round_trip_via_canonical_last_map(
     target_map_id: str,
     target_warp: int,
 ) -> None:
-    session = GameSession(pokered_world)
+    session = GameSession(_pallet_exploration_world(pokered_world))
     _walk_to_warp(session, pokered_world.maps[source_map_id], source_warp)
 
     assert session.map_id == target_map_id
@@ -360,7 +366,7 @@ def test_pallet_building_warps_round_trip_via_canonical_last_map(
 
 
 def test_reds_house_stairs_round_trip(pokered_world: WorldDefinition) -> None:
-    session = GameSession(pokered_world)
+    session = GameSession(_pallet_exploration_world(pokered_world))
     _walk_to_warp(session, pokered_world.maps["PALLET_TOWN"], 1)
     _walk_to_warp(session, pokered_world.maps["REDS_HOUSE_1F"], 3)
 

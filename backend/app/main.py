@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections import OrderedDict
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,8 +17,18 @@ from starlette.staticfiles import StaticFiles
 from backend.app.engine.game import ActionResult, GameSession
 from backend.app.engine.repository import default_source, load_world
 from backend.app.models.map import WorldDefinition
-from backend.app.models.protocol import ClientMessage, ErrorMessage, InteractIntent, MoveIntent
+from backend.app.models.protocol import (
+    AcknowledgeCueIntent,
+    AcknowledgeTransitionIntent,
+    ChoiceIntent,
+    ClientMessage,
+    ErrorMessage,
+    InteractIntent,
+    MoveIntent,
+    StateMessage,
+)
 from backend.app.models.rendering import ThreeDManifest
+from backend.app.models.story import StoryDefinition
 from backend.app.presentation.three_d import load_three_d_manifest
 from backend.app.source.provider import ApplicationSource
 from backend.app.version import __version__
@@ -35,6 +46,7 @@ def log_event(event: str, **fields: object) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.world = load_world(app.state.source)
+    app.state.story = app.state.source.build_story()
     _validate_three_d_resources(
         app.state.source,
         app.state.world,
@@ -81,6 +93,7 @@ def create_app(
     source: ApplicationSource | None = None,
     three_d_manifest: ThreeDManifest | None = None,
     asset_root: Path | None = None,
+    story: StoryDefinition | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="Pokémon Red compatibility runtime",
@@ -91,6 +104,7 @@ def create_app(
     app.state.three_d_manifest = three_d_manifest or load_three_d_manifest()
     if world is not None:
         app.state.world = world
+        app.state.story = story
     configured_asset_root = Path(os.environ.get("POKEMON_ASSETS_PATH", DEFAULT_ASSET_ROOT))
     app.mount(
         "/assets",
@@ -145,10 +159,11 @@ def create_app(
     @app.websocket("/ws/game")
     async def game_socket(websocket: WebSocket) -> None:
         await websocket.accept()
-        session = GameSession(app.state.world)
+        session = GameSession(app.state.world, app.state.story)
         connected = session.response(None, ActionResult("connected"))
         await websocket.send_json(connected.model_dump(mode="json"))
         log_event("session_connected", outcome="success", map_id=session.map_id)
+        replay_cache: OrderedDict[str, tuple[ClientMessage, StateMessage]] = OrderedDict()
 
         try:
             while True:
@@ -169,13 +184,31 @@ def create_app(
                     await _send_invalid_message(websocket, _safe_request_id(raw_message))
                     continue
 
+                replay = replay_cache.get(message.request_id)
+                if replay is not None:
+                    previous_message, previous_response = replay
+                    if previous_message != message:
+                        await _send_invalid_message(websocket, message.request_id)
+                    else:
+                        await websocket.send_json(previous_response.model_dump(mode="json"))
+                    continue
+
                 if isinstance(message, MoveIntent):
                     result = session.move(message.direction, continued=message.continued)
                 elif isinstance(message, InteractIntent):
                     result = session.interact()
+                elif isinstance(message, ChoiceIntent):
+                    result = session.choose(message.choice_id, message.intent)
+                elif isinstance(message, AcknowledgeCueIntent):
+                    result = session.acknowledge_cue(message.cue_id)
+                elif isinstance(message, AcknowledgeTransitionIntent):
+                    result = session.acknowledge_transition(message.transition_id)
                 else:  # pragma: no cover - the discriminated union is exhaustive.
                     raise AssertionError("unhandled client message")
                 response = session.response(message.request_id, result)
+                replay_cache[message.request_id] = (message, response)
+                if len(replay_cache) > 256:
+                    replay_cache.popitem(last=False)
                 await websocket.send_json(response.model_dump(mode="json"))
         except WebSocketDisconnect:
             log_event("session_disconnected", outcome="success", map_id=session.map_id)

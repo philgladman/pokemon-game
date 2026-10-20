@@ -163,6 +163,9 @@ describe("retro renderer geometry", () => {
     expect(shouldAnimatePlayerMove("A", "A", { x: 1, y: 1 }, { x: 1, y: 2 }, true)).toBe(
       false,
     );
+    expect(
+      shouldAnimatePlayerMove("A", "A", { x: 1, y: 1 }, { x: 1, y: 2 }, false, true),
+    ).toBe(false);
   });
 });
 
