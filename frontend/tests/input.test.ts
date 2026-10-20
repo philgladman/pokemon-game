@@ -60,10 +60,19 @@ function state(
         width: 10,
         height: 10,
         walkable: [],
-        npcs: [],
+        actors: [],
       },
       player: { position: { x: 5, y: 6 }, facing: "south", sprite: "SPRITE_RED" },
       dialog,
+      choice: null,
+      control_mode: dialog === null ? "free" : "dialog",
+      movement_cue: null,
+      transition: null,
+      flags: [],
+      has_starter: false,
+      player_starter: null,
+      rival_starter: null,
+      party: [],
     },
   };
 }
@@ -267,5 +276,55 @@ describe("HeldInputController", () => {
     const controller = new HeldInputController(send, () => "request", new ManualClock());
     expect(() => controller.keyDown("ArrowUp")).not.toThrow();
     expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes source choice controls and locks overworld movement", () => {
+    const { controller, sent } = harness();
+    const choosing = state(null);
+    choosing.state.control_mode = "choice";
+    choosing.state.choice = {
+      id: "starter_yes_no",
+      instance_id: "choice-7",
+      prompt: "Choose?",
+      options: [
+        { id: "yes", label: "YES" },
+        { id: "no", label: "NO" },
+      ],
+      selected_index: 0,
+      cancel_index: 1,
+    };
+    controller.handleState(choosing);
+
+    expect(controller.keyDown("ArrowDown")).toBe(true);
+    expect(sent[0]).toMatchObject({
+      type: "choice",
+      choice_id: "choice-7",
+      intent: "next",
+    });
+    controller.handleState(state("request-1", "choice_updated"));
+
+    const locked = state(null);
+    locked.state.control_mode = "scripted_movement";
+    controller.handleState(locked);
+    expect(controller.keyDown("ArrowUp")).toBe(true);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("stops an existing hold when a story cue takes control", () => {
+    const { controller, clock, sent } = harness();
+    controller.keyDown("ArrowDown");
+    const scripted = state("request-1", "scripted_movement");
+    scripted.state.control_mode = "scripted_movement";
+    scripted.state.movement_cue = {
+      id: "cue-1",
+      tracks: [
+        { actor_id: "player", start: { x: 5, y: 6 }, steps: ["north"] },
+      ],
+    };
+
+    controller.handleState(scripted);
+    clock.advance(MOVE_DURATION_MS * 2);
+
+    expect(sent).toHaveLength(1);
   });
 });

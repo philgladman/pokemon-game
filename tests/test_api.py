@@ -4,12 +4,21 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.main import _validate_three_d_resources, create_app
+from backend.app.models.common import Direction
 from backend.app.models.map import WorldDefinition
 from backend.app.models.rendering import (
     RetroMapResources,
     SourceAsset,
     ThreeDManifest,
     ThreeDMapResources,
+)
+from backend.app.models.story import (
+    ActorState,
+    ChoiceCommand,
+    ChoiceOption,
+    InteractionTrigger,
+    StoryDefinition,
+    StoryNode,
 )
 from backend.app.presentation.three_d import load_three_d_manifest
 
@@ -67,7 +76,7 @@ class FixtureSource:
 def test_health_and_version(world: WorldDefinition) -> None:
     with TestClient(create_app(world)) as client:
         assert client.get("/api/health").json() == {"status": "ok"}
-        assert client.get("/api/version").json() == {"version": "0.2.0"}
+        assert client.get("/api/version").json() == {"version": "0.3.0"}
 
 
 def test_source_asset_endpoint_only_serves_provider_allowlist(
@@ -207,3 +216,176 @@ def test_each_websocket_has_an_isolated_session(world: WorldDefinition) -> None:
             assert first.receive_json()["state_version"] == 1
         with client.websocket_connect("/ws/game") as second:
             assert second.receive_json()["state_version"] == 0
+
+
+def test_story_choice_and_cue_messages_are_typed_and_correlated(
+    pokered_world: WorldDefinition,
+    pokered_story: StoryDefinition,
+) -> None:
+    with (
+        TestClient(create_app(pokered_world, story=pokered_story)) as client,
+        client.websocket_connect("/ws/game") as socket,
+    ):
+        connected = socket.receive_json()
+        socket.send_json(
+            {
+                "type": "choice",
+                "request_id": "choice-1",
+                "choice_id": "unknown",
+                "intent": "confirm",
+            }
+        )
+        choice = socket.receive_json()
+        socket.send_json(
+            {
+                "type": "acknowledge_cue",
+                "request_id": "cue-1",
+                "cue_id": "unknown",
+            }
+        )
+        cue = socket.receive_json()
+
+    assert connected["state"]["map"]["id"] == "REDS_HOUSE_2F"
+    assert choice["request_id"] == "choice-1"
+    assert (choice["action"], choice["reason"]) == ("blocked", "choice_not_open")
+    assert cue["request_id"] == "cue-1"
+    assert (cue["action"], cue["reason"]) == ("blocked", "stale_movement_cue")
+
+
+def test_websocket_serializes_story_owned_source_fallback_dialog(
+    world: WorldDefinition,
+) -> None:
+    story = StoryDefinition(
+        start_map=world.start_map,
+        start_position=world.player_spawn,
+        start_facing=Direction.SOUTH,
+        event_flags=frozenset(),
+        initial_actors={
+            map_id: tuple(
+                ActorState(
+                    id=npc.id,
+                    position=npc.position,
+                    facing=npc.facing,
+                    visible=npc.visible,
+                    sprite=npc.sprite,
+                )
+                for npc in map_definition.npcs
+            )
+            for map_id, map_definition in world.maps.items()
+        },
+        texts={},
+        movements={},
+        starters={},
+        nodes=(),
+        provenance=world.maps[world.start_map].provenance,
+    )
+    with (
+        TestClient(create_app(world, story=story)) as client,
+        client.websocket_connect("/ws/game") as socket,
+    ):
+        socket.receive_json()
+        socket.send_json({"type": "interact", "request_id": "source-dialog"})
+        opened = socket.receive_json()
+
+    assert opened["request_id"] == "source-dialog"
+    assert opened["action"] == "dialog_opened"
+    assert opened["state"]["control_mode"] == "dialog"
+    assert opened["state"]["dialog"] == {
+        "interaction_id": "PERSON",
+        "pages": ["Source page one", "Source page two"],
+        "page_index": 0,
+    }
+
+
+def test_websocket_choice_instances_reject_stale_input_and_replay_duplicate_requests(
+    world: WorldDefinition,
+) -> None:
+    provenance = world.maps["OUTDOOR"].provenance
+    person = world.maps["OUTDOOR"].npcs[0]
+    options = (ChoiceOption(id="yes", label="YES"), ChoiceOption(id="no", label="NO"))
+    story = StoryDefinition(
+        start_map="OUTDOOR",
+        start_position=world.player_spawn,
+        start_facing=Direction.SOUTH,
+        event_flags=frozenset(),
+        initial_actors={
+            "OUTDOOR": (
+                ActorState(
+                    id=person.id,
+                    position=person.position,
+                    facing=person.facing,
+                    visible=person.visible,
+                    sprite=person.sprite,
+                ),
+            ),
+            "INDOOR": (),
+        },
+        texts={},
+        movements={},
+        starters={},
+        nodes=(
+            StoryNode(
+                id="choose",
+                trigger=InteractionTrigger(map_id="OUTDOOR", actor_id="PERSON"),
+                commands=(
+                    ChoiceCommand(
+                        id="fixture_choice",
+                        prompt="Choose?",
+                        options=options,
+                        cancel_index=1,
+                        branches={"yes": ("yes_end",), "no": ("no_end",)},
+                    ),
+                ),
+                provenance=provenance,
+            ),
+            StoryNode(id="yes_end", provenance=provenance),
+            StoryNode(id="no_end", provenance=provenance),
+        ),
+        provenance=provenance,
+    )
+
+    with (
+        TestClient(create_app(world, story=story)) as client,
+        client.websocket_connect("/ws/game") as socket,
+    ):
+        socket.receive_json()
+        socket.send_json({"type": "interact", "request_id": "open-1"})
+        opened = socket.receive_json()
+        first_id = opened["state"]["choice"]["instance_id"]
+        next_message = {
+            "type": "choice",
+            "request_id": "next-1",
+            "choice_id": first_id,
+            "intent": "next",
+        }
+        socket.send_json(next_message)
+        advanced = socket.receive_json()
+        socket.send_json(next_message)
+        replayed = socket.receive_json()
+        socket.send_json(
+            {
+                "type": "choice",
+                "request_id": "confirm-1",
+                "choice_id": first_id,
+                "intent": "confirm",
+            }
+        )
+        socket.receive_json()
+        socket.send_json({"type": "interact", "request_id": "open-2"})
+        reopened = socket.receive_json()
+        second_id = reopened["state"]["choice"]["instance_id"]
+        socket.send_json(
+            {
+                "type": "choice",
+                "request_id": "stale-confirm",
+                "choice_id": first_id,
+                "intent": "confirm",
+            }
+        )
+        stale = socket.receive_json()
+
+    assert advanced == replayed
+    assert advanced["state"]["choice"]["selected_index"] == 1
+    assert second_id != first_id
+    assert (stale["action"], stale["reason"]) == ("blocked", "stale_choice")
+    assert stale["state"]["choice"]["instance_id"] == second_id

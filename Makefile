@@ -1,4 +1,4 @@
-.PHONY: check source-check test backend-dev frontend-dev
+.PHONY: check oracle-check source-check test backend-dev frontend-dev
 
 check:
 	.venv/bin/ruff format --check .
@@ -7,6 +7,9 @@ check:
 	.venv/bin/pytest
 	.venv/bin/python -m tools.pokered_source_check
 	cd frontend && npm run typecheck && npm test && npm run build
+
+oracle-check:
+	.venv/bin/python -m tools.pokered_oracle check
 
 source-check:
 	.venv/bin/python -m tools.pokered_source_check

@@ -1,9 +1,11 @@
 import "./style.css";
 
 import { GameClient } from "./gameClient";
+import { CueAcknowledger } from "./cueAcknowledgement";
 import { HeldInputController } from "./input";
 import { RetroRenderer } from "./renderers/retro/RetroRenderer";
 import { TransitionCoordinator } from "./transitionCoordinator";
+import { TransitionAcknowledger } from "./transitionAcknowledgement";
 import type { GameRenderer, StateMessage } from "./types";
 
 function requireElement<T extends HTMLElement>(id: string): T {
@@ -29,8 +31,13 @@ async function main(): Promise<void> {
   const dialog = requireElement<HTMLElement>("dialog");
   const dialogLine = requireElement<HTMLElement>("dialog-line");
   const transitionOverlay = requireElement<HTMLElement>("transition-overlay");
+  const choice = requireElement<HTMLElement>("choice");
+  const choicePrompt = requireElement<HTMLElement>("choice-prompt");
+  const choiceOptions = requireElement<HTMLOListElement>("choice-options");
   const renderer = await createRenderer(canvas);
   let input: HeldInputController | null = null;
+  let cueAcknowledger: CueAcknowledger | null = null;
+  let transitionAcknowledger: TransitionAcknowledger | null = null;
 
   function applyInterface(message: StateMessage): void {
     mapName.textContent = message.state.map.source_name;
@@ -42,6 +49,19 @@ async function main(): Promise<void> {
     if (message.action === "unsupported_interaction") {
       connectionStatus.textContent = `Unsupported source script: ${message.reason ?? "unknown"}`;
     }
+    const activeChoice = message.state.choice;
+    choice.classList.toggle("hidden", activeChoice === null);
+    if (activeChoice !== null) {
+      choicePrompt.textContent = activeChoice.prompt;
+      choiceOptions.replaceChildren(
+        ...activeChoice.options.map((option, index) => {
+          const item = document.createElement("li");
+          item.textContent = option.label;
+          item.classList.toggle("selected", index === activeChoice.selected_index);
+          return item;
+        }),
+      );
+    }
   }
 
   const transitionCoordinator = new TransitionCoordinator(
@@ -50,7 +70,12 @@ async function main(): Promise<void> {
     (enabled) => input?.setEnabled(enabled),
     applyInterface,
     () => {
-      connectionStatus.textContent = "Unable to render the latest game state";
+      connectionStatus.textContent = "Unable to finish transition — press E or Space to retry";
+    },
+    undefined,
+    {
+      movementCue: (message) => cueAcknowledger?.rendered(message.state) ?? false,
+      transition: (message) => transitionAcknowledger?.rendered(message.state) ?? false,
     },
   );
 
@@ -64,12 +89,32 @@ async function main(): Promise<void> {
     (status) => {
       connectionStatus.textContent = status;
     },
-    () => input?.reset(),
+    () => {
+      input?.reset();
+      cueAcknowledger?.reset();
+      transitionAcknowledger?.reset();
+    },
   );
   input = new HeldInputController((message) => client.send(message), () => crypto.randomUUID());
+  cueAcknowledger = new CueAcknowledger(
+    (message) => client.send(message),
+    () => crypto.randomUUID(),
+  );
+  transitionAcknowledger = new TransitionAcknowledger(
+    (message) => client.send(message),
+    () => crypto.randomUUID(),
+  );
   client.connect();
 
   window.addEventListener("keydown", (event) => {
+    if (
+      transitionCoordinator.hasPendingRetry()
+      && (event.code === "KeyE" || event.code === "Space")
+    ) {
+      if (!event.repeat) void transitionCoordinator.retryPending();
+      event.preventDefault();
+      return;
+    }
     if (input?.keyDown(event.code, event.repeat)) event.preventDefault();
   });
   window.addEventListener("keyup", (event) => {

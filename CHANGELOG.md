@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.0 - 2026-10-19
+
+- Added an optional, headless PyBoy reference oracle that builds the exact
+  pinned Red ROM with RGBDS 1.0.4 in an ignored cache, verifies its canonical
+  SHA-1 and symbols, and records deterministic semantic traces independently of
+  the normal application checks.
+- Added the source-backed Pallet opening story from the canonical new-game warp
+  through starter selection, stopping at a typed boundary before the rival battle.
+- Added an immutable, provenance-bearing trigger/condition/command story graph
+  and a session-local Python runner for event flags, mutable actors, conditional
+  dialog, choices, party state, and server-authored multi-actor movement cues.
+- Parsed and validated the pinned source's event constants, initial visibility,
+  story text, plain and RLE movement, starter IDs/names, counter-starter mapping,
+  and runtime species-name text behavior with explicit source-drift failures.
+- Added instance-correlated, replay-safe choices plus cue and transition
+  acknowledgements, shared browser choice controls, and scripted movement in
+  both renderers without bypassing the existing map fade; dialog and choice
+  overlays reflect each cue snapshot before its completion-gated animation.
+- Preserved source ordering for starter selection versus party grants, Oak's
+  Pallet escort (including backward-consumed simulated joypad paths and the
+  on-step lab warp that interrupts the remaining buffered input), lab actor
+  facings, rival starter receipt, and the rival's approach immediately before
+  the Phase 3B boundary.
+- Kept rival battle state unset and made its trigger an explicit, non-skippable
+  Phase 3B boundary.
+
 ## 0.2.0 - 2026-10-19
 
 - Replaced checked-in imported YAML/generated JSON and handwritten Pallet

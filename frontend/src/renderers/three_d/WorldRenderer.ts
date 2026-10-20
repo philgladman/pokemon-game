@@ -11,8 +11,25 @@ import type {
   ThreeDMapResources,
 } from "../../types";
 import { isAdjacentStep, MOVE_DURATION_MS } from "../../movement";
+import { animateMovementCue, movementTrackState } from "../../scriptedMovement";
 import { AssetFactory, requireAppearance } from "./AssetFactory";
 import { ThreeDResourceLoader } from "./resources";
+
+export class PlayerMotionAuthority {
+  private scripted = false;
+
+  observeSnapshot(hasPlayerCue: boolean): void {
+    if (hasPlayerCue) this.scripted = true;
+  }
+
+  snapshotApplied(hasPlayerCue: boolean): void {
+    this.scripted = hasPlayerCue;
+  }
+
+  normalInterpolationAllowed(): boolean {
+    return !this.scripted;
+  }
+}
 
 export class WorldRenderer implements GameRenderer {
   private readonly renderer: THREE.WebGLRenderer;
@@ -30,6 +47,9 @@ export class WorldRenderer implements GameRenderer {
   private lastPlayerPosition: Position | null = null;
   private readonly moveFrom = new THREE.Vector3();
   private readonly moveTo = new THREE.Vector3();
+  private actorSignature = "";
+  private readonly actors = new Map<string, THREE.Object3D>();
+  private readonly playerMotionAuthority = new PlayerMotionAuthority();
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -53,6 +73,11 @@ export class WorldRenderer implements GameRenderer {
     snapshot: SessionSnapshot,
     _presentation: PresentationContext,
   ): Promise<void> {
+    const previousHadCue = this.latestSnapshot?.movement_cue !== null
+      && this.latestSnapshot?.movement_cue !== undefined;
+    const hasPlayerCue =
+      snapshot.movement_cue?.tracks.some((track) => track.actor_id === "player") ?? false;
+    this.playerMotionAuthority.observeSnapshot(hasPlayerCue);
     this.latestSnapshot = snapshot;
     try {
       const [manifest, mapResources] = await Promise.all([
@@ -61,21 +86,44 @@ export class WorldRenderer implements GameRenderer {
       ]);
       if (this.latestSnapshot !== snapshot || snapshot.map.id !== mapResources.map_id) return;
       this.manifest = manifest;
-      this.applySnapshot(snapshot, mapResources);
+      this.applySnapshot(snapshot, mapResources, previousHadCue);
+      this.playerMotionAuthority.snapshotApplied(hasPlayerCue);
       this.renderer.render(this.scene, this.camera);
+      if (snapshot.movement_cue !== null) {
+        await animateMovementCue(snapshot.movement_cue, (elapsed) => {
+          for (const track of snapshot.movement_cue?.tracks ?? []) {
+            const state = movementTrackState(track, elapsed);
+            const object = track.actor_id === "player" ? this.player : this.actors.get(track.actor_id);
+            object?.position.copy(this.toWorld(snapshot.map, state.position, 0.48));
+            if (object !== undefined && object !== null && state.facing !== null) {
+              object.rotation.y = facingRotation(state.facing);
+            }
+            if (track.actor_id === "player") {
+              this.camera.lookAt(object?.position ?? new THREE.Vector3());
+            }
+          }
+          this.renderer.render(this.scene, this.camera);
+        });
+      }
     } catch (error: unknown) {
       console.error("Unable to update the 3D renderer.", error);
       throw error;
     }
   }
 
-  private applySnapshot(snapshot: SessionSnapshot, resources: ThreeDMapResources): void {
+  private applySnapshot(
+    snapshot: SessionSnapshot,
+    resources: ThreeDMapResources,
+    previousHadCue: boolean,
+  ): void {
     const manifest = this.manifest;
     if (manifest === null) return;
+    const signature = JSON.stringify(snapshot.map.actors);
     const mapChanged = snapshot.map.id !== this.currentMapId;
-    if (mapChanged) {
+    if (mapChanged || signature !== this.actorSignature) {
       this.rebuildMap(snapshot.map, resources, manifest);
       this.currentMapId = snapshot.map.id;
+      this.actorSignature = signature;
     }
 
     const playerChanged =
@@ -98,6 +146,7 @@ export class WorldRenderer implements GameRenderer {
     if (
       mapChanged ||
       playerChanged ||
+      previousHadCue ||
       this.lastPlayerPosition === null ||
       !isAdjacentStep(this.lastPlayerPosition, snapshot.player.position)
     ) {
@@ -119,6 +168,7 @@ export class WorldRenderer implements GameRenderer {
     manifest: Record<string, AppearanceDefinition>,
   ): void {
     this.disposeChildren(this.worldGroup);
+    this.actors.clear();
     for (let y = 0; y < map.height; y += 1) {
       for (let x = 0; x < map.width; x += 1) {
         const appearance = resources.tile_appearances[y]?.[x];
@@ -131,15 +181,16 @@ export class WorldRenderer implements GameRenderer {
       }
     }
 
-    for (const npc of map.npcs.filter((candidate) => candidate.visible)) {
-      const appearance = resources.npc_appearances[npc.id];
+    for (const actor of map.actors.filter((candidate) => candidate.visible)) {
+      const appearance = resources.npc_appearances[actor.id];
       if (appearance === undefined) {
-        throw new Error(`Missing 3D appearance for NPC ${npc.id}`);
+        throw new Error(`Missing 3D appearance for actor ${actor.id}`);
       }
       const character = this.assetFactory.create(requireAppearance(manifest, appearance));
-      character.position.copy(this.toWorld(map, npc.position, 0.48));
-      character.rotation.y = facingRotation(npc.facing);
+      character.position.copy(this.toWorld(map, actor.position, 0.48));
+      character.rotation.y = facingRotation(actor.facing);
       this.worldGroup.add(character);
+      this.actors.set(actor.id, character);
     }
 
     this.camera.position.set(0, Math.max(13, map.height * 0.85), map.height * 0.72);
@@ -163,7 +214,11 @@ export class WorldRenderer implements GameRenderer {
   }
 
   private render(time: number): void {
-    if (this.player !== null && !this.player.position.equals(this.moveTo)) {
+    if (
+      this.playerMotionAuthority.normalInterpolationAllowed()
+      && this.player !== null
+      && !this.player.position.equals(this.moveTo)
+    ) {
       const progress = Math.min(1, (time - this.moveStartedAt) / MOVE_DURATION_MS);
       const eased = 1 - (1 - progress) ** 3;
       this.player.position.lerpVectors(this.moveFrom, this.moveTo, eased);

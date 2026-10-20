@@ -85,6 +85,24 @@ body {
 .dialog p,
 .dialog small { margin: 0; }
 
+.choice {
+  position: absolute;
+  z-index: 12;
+  right: 4%;
+  bottom: 4%;
+  min-width: 35%;
+  padding: 3%;
+  border: clamp(3px, 0.7vw, 6px) double #0f380f;
+  background: #9bbc0f;
+}
+
+.choice p,
+.choice ol { margin: 0 0 0.5rem; }
+
+.choice li { list-style: none; }
+
+.choice li.selected::before { content: "▶ "; }
+
 .dialog small {
   position: absolute;
   right: 4%;
