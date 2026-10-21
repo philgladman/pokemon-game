@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Literal
 
 from backend.app.engine.text import normalize_source_name
+from backend.app.models.battle import BattleDefinition
 from backend.app.models.common import Direction, Position
 from backend.app.models.map import (
     BackgroundEvent,
@@ -19,6 +20,7 @@ from backend.app.models.map import (
 from backend.app.models.rendering import RetroMapResources, SourceAsset, ThreeDMapResources
 from backend.app.models.story import StoryDefinition
 
+from .battle import build_first_battle
 from .pallet_story import build_pallet_story
 from .parsers import (
     ParseError,
@@ -82,6 +84,7 @@ class PokeredSource:
         self._integrity_validated = False
         self._world: WorldDefinition | None = None
         self._story: StoryDefinition | None = None
+        self._battle: BattleDefinition | None = None
         self._asset_allowlist: dict[tuple[str, str], Path] = {}
         self._retro_resources: dict[str, RetroMapResources] = {}
         self._three_d_resources: dict[str, ThreeDMapResources] = {}
@@ -134,6 +137,20 @@ class PokeredSource:
             raise PokeredSourceError(
                 f"source asset is not allowlisted: {category}/{name}"
             ) from error
+
+    def build_battle(self) -> BattleDefinition:
+        if self._battle is None:
+            try:
+                definition = build_first_battle(self._root, self.revision, self.build_story())
+                for name in ("bulbasaur", "charmander", "squirtle"):
+                    self._asset("pokemon-front", name)
+                    self._asset("pokemon-back", f"{name}b")
+                self._battle = definition
+            except (OSError, ParseError, ValueError) as error:
+                raise PokeredSourceError(
+                    f"unable to build first battle from pret/pokered: {error}"
+                ) from error
+        return self._battle
 
     def retro_resources(self, map_id: str) -> RetroMapResources:
         if self._world is None:
@@ -404,7 +421,15 @@ class PokeredSource:
         return Position(x=int(match.group(1)), y=int(match.group(2)))
 
     def _asset(self, category: str, name: str) -> SourceAsset:
-        directory = "tilesets" if category == "tilesets" else "sprites"
+        directories = {
+            "tilesets": "tilesets",
+            "sprites": "sprites",
+            "pokemon-front": "pokemon/front",
+            "pokemon-back": "pokemon/back",
+        }
+        if category not in directories or not re.fullmatch(r"[a-z0-9_]+", name):
+            raise ParseError("unsupported source asset category or name")
+        directory = directories[category]
         path = self._path(f"gfx/{directory}/{name}.png")
         if not path.is_file():
             raise ParseError(f"missing source asset {path.relative_to(self._root)}")

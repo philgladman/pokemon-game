@@ -3,6 +3,8 @@ from __future__ import annotations
 import copy
 
 from backend.app.engine.game import ActionResult, GameSession
+from backend.app.engine.pokemon import ByteRng
+from backend.app.models.battle import BattleDefinition
 from backend.app.models.common import Direction
 from backend.app.models.map import WorldDefinition
 from backend.app.models.protocol import SessionSnapshot
@@ -14,8 +16,14 @@ from .trace import ActorTrace, SemanticState
 class RuntimeAdapter:
     """Expose GameSession through the same semantic checkpoints as the ROM oracle."""
 
-    def __init__(self, world: WorldDefinition, story: StoryDefinition) -> None:
-        self.session = GameSession(world, story)
+    def __init__(
+        self,
+        world: WorldDefinition,
+        story: StoryDefinition,
+        battle: BattleDefinition | None = None,
+        rng: ByteRng | None = None,
+    ) -> None:
+        self.session = GameSession(world, story, battle, rng)
         self.species_by_id = {
             species.id: species.constant
             for starter in story.starters.values()

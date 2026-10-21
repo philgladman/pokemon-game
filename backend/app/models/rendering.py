@@ -10,7 +10,9 @@ from .common import StrictModel
 class SourceAsset(StrictModel):
     kind: Literal["tileset", "sprite"]
     name: str = Field(pattern=r"^[a-z0-9_]+$")
-    url: str = Field(pattern=r"^/source-assets/(?:tilesets|sprites)/[a-z0-9_]+\.png$")
+    url: str = Field(
+        pattern=r"^/source-assets/(?:tilesets|sprites|pokemon-front|pokemon-back)/[a-z0-9_]+\.png$"
+    )
 
 
 class RetroMapResources(StrictModel):

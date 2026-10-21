@@ -48,6 +48,8 @@ class Phase3ACoverage:
         runtime: GameplayDriver,
         story: StoryDefinition,
         source_revision: str,
+        on_starter_granted: Callable[[str], None] | None = None,
+        on_starter_complete: Callable[[str], None] | None = None,
     ) -> None:
         self.source = source
         self.runtime = runtime
@@ -55,6 +57,8 @@ class Phase3ACoverage:
         self._source_trace = TraceRecorder(SCENARIO_ID, "pokered", source_revision)
         self._runtime_trace = TraceRecorder(SCENARIO_ID, "runtime", source_revision)
         self._scenarios: list[str] = []
+        self._on_starter_granted = on_starter_granted
+        self._on_starter_complete = on_starter_complete
 
     def run(self) -> CoverageResult:
         self.source.save_checkpoint("new-game")
@@ -280,6 +284,8 @@ class Phase3ACoverage:
             rival_take = InteractionContract("rival_take", "TEXT_OAKSLAB_RIVAL_ILL_TAKE_THIS_ONE")
             self.source.expect_dialog(rival_take)
             self.runtime.expect_dialog(rival_take)
+            if self._on_starter_granted is not None:
+                self._on_starter_granted(species)
             self._record(
                 f"starter-{species.lower()}-party",
                 (
@@ -314,6 +320,8 @@ class Phase3ACoverage:
             for state in (source, runtime):
                 if "EVENT_BATTLED_RIVAL_IN_OAKS_LAB" in (state.flags or ()):
                     raise OracleError(f"{species} oracle crossed the Phase 3A battle boundary")
+            if self._on_starter_complete is not None:
+                self._on_starter_complete(species)
         self._scenarios.append("all-starters/counter-selection")
 
     def _choice(self, label: str, ball: str) -> None:
@@ -442,8 +450,13 @@ def run_phase3a_coverage(
     story: StoryDefinition,
     source_revision: str,
     trace_sink: Callable[[SemanticTrace], object] | None = None,
+    *,
+    on_starter_granted: Callable[[str], None] | None = None,
+    on_starter_complete: Callable[[str], None] | None = None,
 ) -> CoverageResult:
-    coverage = Phase3ACoverage(source, runtime, story, source_revision)
+    coverage = Phase3ACoverage(
+        source, runtime, story, source_revision, on_starter_granted, on_starter_complete
+    )
     try:
         return coverage.run()
     finally:

@@ -112,8 +112,43 @@ outside that supported shape; unrelated conditional assembly is still reported
 as unsupported. Source text compatibility resolves tokens such
 as `#MON`, `<PLAYER>`, `<RIVAL>`, and the starter name buffer at execution time.
 Python owns event flags, choices, actor visibility and position, the minimal
-party, and the Phase 3B boundary. A full assembly VM, rival battle, Route 1,
-saves, and the rest of Kanto remain out of scope for this milestone.
+party, and the first rival battle. After the source challenge and approach, a
+shared battle overlay works with both world renderers. Choose starting moves
+with arrows/WASD and E/Space, or click a move; Enter activates a focused button.
+Text advances explicitly before the next turn becomes available.
+
+Phase 3B's battle engine is available independently of the browser:
+`PokeredSource.build_battle()` parses the three level-5 starters, starting moves,
+trainer DVs, rival party mapping, and stat modifier table. The immutable Pokémon
+factory preserves player DVs at realization; `create_rival_battle()` accepts that
+existing Pokémon, and `resolve_turn()` returns a new state plus ordered events.
+The caller injects random bytes, making source-specific critical hits, accuracy,
+damage rejection draws, rival move selection, debuffs, PP, Struggle/recoil, and
+fainting reproducible. This models battle decision calls, not the Game Boy's
+frame-dependent PRNG. Unsupported species, levels, moves, and commands fail
+explicitly. The player is realized once when granted and retains those DVs,
+stats, HP, and PP throughout combat. Python sends the ordered text and HP/PP
+frames; battle/turn tokens and acknowledged presentation batches prevent replay
+or double submissions. Source front/back starter PNGs and move names are loaded
+from the pinned checkout. Artwork failures can be retried without advancing a
+turn. Winning awards source experience and stat experience, raises the starter
+to level 6, and adds ¥175 to the initial ¥3000 wallet. Frame-specific level,
+maximum HP, and stats preserve the source presentation order. Losing in the lab
+keeps experience and money unchanged. After the final battle batch is
+acknowledged, both outcomes heal the party before the rival's farewell, animate
+his departure, and return control in the lab. Oak uses his postbattle text and
+the rival cannot challenge again. The overworld's party summary stays minimal.
+
+For live ROM checks of every granted starter's observed DVs, stats, starting
+moves, PP, level, and zero stat experience against the Python factory, run:
+
+```bash
+.venv/bin/python -m tools.pokered_oracle check --battle-stats
+```
+
+Optional live battle-turn and outcome comparisons use `oracle check --battle`;
+see [reference oracle](docs/reference-oracle.md) for coverage and evidence.
+A full assembly VM, Route 1, saves, and the rest of Kanto remain out of scope.
 
 Each displayed choice and story-authored map transition has a unique session
 token. The server rejects stale tokens and replays duplicate request IDs without
@@ -129,7 +164,9 @@ the server then commits the positions and advances the story. Stale, duplicate,
 or unknown acknowledgements cannot mutate session state.
 
 Source PNGs are available only through the allowlisted
-`/source-assets/{tilesets|sprites}/...` endpoint. Arbitrary files from the
+`/source-assets/{tilesets|sprites|pokemon-front|pokemon-back}/...` endpoint.
+The two Pokémon categories expose only the six starter front/back files.
+Arbitrary files from the
 checkout cannot be requested.
 
 ## Verification

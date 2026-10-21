@@ -28,6 +28,8 @@ class EmulatorPort(Protocol):
 
     def read(self, address: int) -> int: ...
 
+    def register(self, name: str) -> int: ...
+
     def save_checkpoint(self, name: str) -> None: ...
 
     def load_checkpoint(self, name: str) -> None: ...
@@ -91,6 +93,12 @@ class PyBoyAdapter:
 
     def read(self, address: int) -> int:
         return cast(int, self._pyboy.memory[address])
+
+    def register(self, name: str) -> int:
+        """Expose CPU observations without offering a register mutation API."""
+        if name not in {"A", "SP", "PC", "HL"}:
+            raise OracleError(f"unsupported observed CPU register: {name}")
+        return cast(int, getattr(self._pyboy.register_file, name))
 
     def save_checkpoint(self, name: str) -> None:
         stream = BytesIO()

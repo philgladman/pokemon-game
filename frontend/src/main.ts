@@ -1,6 +1,8 @@
 import "./style.css";
 
 import { GameClient } from "./gameClient";
+import { BattlePresentation } from "./battlePresentation";
+import { BattleView } from "./battleView";
 import { CueAcknowledger } from "./cueAcknowledgement";
 import { HeldInputController } from "./input";
 import { RetroRenderer } from "./renderers/retro/RetroRenderer";
@@ -34,10 +36,15 @@ async function main(): Promise<void> {
   const choice = requireElement<HTMLElement>("choice");
   const choicePrompt = requireElement<HTMLElement>("choice-prompt");
   const choiceOptions = requireElement<HTMLOListElement>("choice-options");
+  const battleRoot = requireElement<HTMLElement>("battle");
+  const battleView = new BattleView(battleRoot);
   const renderer = await createRenderer(canvas);
   let input: HeldInputController | null = null;
   let cueAcknowledger: CueAcknowledger | null = null;
   let transitionAcknowledger: TransitionAcknowledger | null = null;
+  let battle: BattlePresentation | null = null;
+  let battleActive = false;
+  let available = true;
 
   function applyInterface(message: StateMessage): void {
     mapName.textContent = message.state.map.source_name;
@@ -67,7 +74,7 @@ async function main(): Promise<void> {
   const transitionCoordinator = new TransitionCoordinator(
     renderer,
     transitionOverlay,
-    (enabled) => input?.setEnabled(enabled),
+    (enabled) => input?.setEnabled(enabled && !battleActive && available),
     applyInterface,
     () => {
       connectionStatus.textContent = "Unable to finish transition — press E or Space to retry";
@@ -80,8 +87,28 @@ async function main(): Promise<void> {
   );
 
   function showState(message: StateMessage): void {
+    if (message.state.battle != null) {
+      battleActive = true;
+      input?.setEnabled(false);
+      input?.reset();
+      dialog.classList.add("hidden");
+      choice.classList.add("hidden");
+      transitionOverlay.hidden = true;
+      mapName.textContent = "Rival battle";
+      void battle?.present(message.state.battle, message);
+      return;
+    }
+    const leavingBattle = battleActive;
+    if (leavingBattle) {
+      battleActive = false;
+      battle?.close();
+      battleRoot.hidden = true;
+      input?.reset();
+    }
     const presentation = input?.handleState(message) ?? { resetGait: true };
-    void transitionCoordinator.present(message, presentation);
+    void transitionCoordinator.present(message, presentation).then(() => {
+      if (leavingBattle && !battleActive && available) input?.setEnabled(true);
+    });
   }
 
   const client = new GameClient(
@@ -90,12 +117,18 @@ async function main(): Promise<void> {
       connectionStatus.textContent = status;
     },
     () => {
+      available = false;
+      battle?.unavailable();
+      input?.setEnabled(false);
       input?.reset();
       cueAcknowledger?.reset();
       transitionAcknowledger?.reset();
     },
   );
   input = new HeldInputController((message) => client.send(message), () => crypto.randomUUID());
+  battle = new BattlePresentation(battleView, (message) => client.send(message), () => crypto.randomUUID());
+  battleView.onActivate = (slot) => { void battle?.activate(slot); };
+  battleView.onRetry = () => { void battle?.retry(); };
   cueAcknowledger = new CueAcknowledger(
     (message) => client.send(message),
     () => crypto.randomUUID(),
@@ -107,6 +140,10 @@ async function main(): Promise<void> {
   client.connect();
 
   window.addEventListener("keydown", (event) => {
+    if (battleActive) {
+      if (battle?.keyDown(event.code, event.repeat)) event.preventDefault();
+      return;
+    }
     if (
       transitionCoordinator.hasPendingRetry()
       && (event.code === "KeyE" || event.code === "Space")
@@ -118,6 +155,7 @@ async function main(): Promise<void> {
     if (input?.keyDown(event.code, event.repeat)) event.preventDefault();
   });
   window.addEventListener("keyup", (event) => {
+    if (battleActive) return;
     if (input?.keyUp(event.code)) event.preventDefault();
   });
   window.addEventListener("blur", () => input?.reset());

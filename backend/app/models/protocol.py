@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field
 
+from .battle_view import BattleSnapshot
 from .common import Direction, Position, StrictModel
 from .pokemon import PartyMember
 from .story import ChoiceState, ControlMode, MapState, MovementCue, TransitionState
@@ -40,8 +41,29 @@ class AcknowledgeTransitionIntent(StrictModel):
     transition_id: str = Field(min_length=1, max_length=100)
 
 
+class BattleActionIntent(StrictModel):
+    type: Literal["battle_action"]
+    request_id: str = Field(min_length=1, max_length=100)
+    battle_id: str = Field(min_length=1, max_length=100)
+    action_token: str = Field(min_length=1, max_length=100)
+    slot: int | None = Field(ge=0, le=3)
+
+
+class AcknowledgeBattleIntent(StrictModel):
+    type: Literal["acknowledge_battle"]
+    request_id: str = Field(min_length=1, max_length=100)
+    battle_id: str = Field(min_length=1, max_length=100)
+    batch_id: str = Field(min_length=1, max_length=100)
+
+
 ClientMessage = Annotated[
-    MoveIntent | InteractIntent | ChoiceIntent | AcknowledgeCueIntent | AcknowledgeTransitionIntent,
+    MoveIntent
+    | InteractIntent
+    | ChoiceIntent
+    | AcknowledgeCueIntent
+    | AcknowledgeTransitionIntent
+    | BattleActionIntent
+    | AcknowledgeBattleIntent,
     Field(discriminator="type"),
 ]
 Action = Literal[
@@ -62,6 +84,9 @@ Action = Literal[
     "movement_completed",
     "transition_completed",
     "phase_boundary",
+    "battle_started",
+    "battle_turn",
+    "battle_presented",
 ]
 
 
@@ -90,6 +115,8 @@ class SessionSnapshot(StrictModel):
     player_starter: str | None
     rival_starter: str | None
     party: list[PartyMember]
+    battle: BattleSnapshot | None = None
+    money: int = Field(default=3000, ge=0, le=999999)
 
 
 class StateMessage(StrictModel):

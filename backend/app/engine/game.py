@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from typing import cast
 
+from backend.app.engine.battle_session import BattleSession
+from backend.app.engine.pokemon import ByteRng
+from backend.app.models.battle import BattleDefinition
 from backend.app.models.common import Direction, Position
 from backend.app.models.map import MapDefinition, TextInteraction, WarpDefinition, WorldDefinition
 from backend.app.models.protocol import (
@@ -14,7 +18,7 @@ from backend.app.models.protocol import (
 )
 from backend.app.models.story import ActorState, MapState, StoryDefinition
 
-from .story import StoryRunner
+from .story import StoryResult, StoryRunner
 from .text import resolve_text_pages
 
 
@@ -24,12 +28,32 @@ class ActionResult:
     reason: str | None = None
 
 
+class BattleRandom:
+    """Session-local random stream which survives oracle deepcopy checkpoints."""
+
+    def __init__(self) -> None:
+        self.random = random.Random()
+
+    def __call__(self) -> int:
+        return self.random.getrandbits(8)
+
+
 class GameSession:
     """One isolated, server-authoritative game session."""
 
-    def __init__(self, world: WorldDefinition, story: StoryDefinition | None = None) -> None:
+    def __init__(
+        self,
+        world: WorldDefinition,
+        story: StoryDefinition | None = None,
+        battle: BattleDefinition | None = None,
+        rng: ByteRng | None = None,
+    ) -> None:
         self._world = world
-        self._story = StoryRunner(world, story) if story is not None else None
+        self._battle_definition = battle
+        self._rng = rng if rng is not None else BattleRandom()
+        self._battle: BattleSession | None = None
+        self.money = battle.starting_money if battle is not None else 3000
+        self._story = StoryRunner(world, story, battle, self._rng) if story is not None else None
         self._map_id = self._story.map_id if self._story is not None else world.start_map
         spawn = self._story.player.position if self._story is not None else world.player_spawn
         self._player = PlayerState(
@@ -80,6 +104,8 @@ class GameSession:
                 player_starter=self._story.player_starter if self._story is not None else None,
                 rival_starter=self._story.rival_starter if self._story is not None else None,
                 party=list(self._story.party) if self._story is not None else [],
+                battle=self._battle.snapshot() if self._battle is not None else None,
+                money=self.money,
             ),
         )
 
@@ -116,7 +142,7 @@ class GameSession:
             if story_result is not None:
                 self._version += 1
                 self._reset_input_continuity()
-                return ActionResult(cast(Action, story_result.action), story_result.reason)
+                return self._story_action(story_result)
         blocked_reason = self._runtime_blocked_reason(current_map, destination)
         if blocked_reason is not None:
             if facing_changed:
@@ -139,7 +165,7 @@ class GameSession:
             story_result = self._story.after_move()
             if story_result is not None:
                 self._reset_input_continuity()
-                return ActionResult(cast(Action, story_result.action), story_result.reason)
+                return self._story_action(story_result)
         return ActionResult("moved")
 
     def _transition(
@@ -181,7 +207,7 @@ class GameSession:
         if self._story is not None:
             story_result = self._story.after_transition()
             if story_result is not None:
-                return ActionResult(cast(Action, story_result.action), story_result.reason)
+                return self._story_action(story_result)
         return ActionResult("transitioned")
 
     def interact(self) -> ActionResult:
@@ -189,7 +215,7 @@ class GameSession:
             story_result = self._story.advance_dialog()
             self._version += 1
             self._reset_input_continuity()
-            return ActionResult(cast(Action, story_result.action), story_result.reason)
+            return self._story_action(story_result)
         if self._story is not None and self._story.control_mode != "free":
             return ActionResult("blocked", f"control_{self._story.control_mode}")
         if self._dialog is not None:
@@ -222,9 +248,7 @@ class GameSession:
             if interaction_result is not None:
                 self._version += 1
                 self._reset_input_continuity()
-                return ActionResult(
-                    cast(Action, interaction_result.action), interaction_result.reason
-                )
+                return self._story_action(interaction_result)
         if npc is not None:
             return self._open_dialog(npc.id, npc.interaction)
         if background is not None:
@@ -238,7 +262,7 @@ class GameSession:
         if result.action != "blocked":
             self._version += 1
         self._reset_input_continuity()
-        return ActionResult(cast(Action, result.action), result.reason)
+        return self._story_action(result)
 
     def acknowledge_cue(self, cue_id: str) -> ActionResult:
         if self._story is None:
@@ -247,7 +271,7 @@ class GameSession:
         if result.action != "blocked":
             self._version += 1
         self._reset_input_continuity()
-        return ActionResult(cast(Action, result.action), result.reason)
+        return self._story_action(result)
 
     def acknowledge_transition(self, transition_id: str) -> ActionResult:
         if self._story is None:
@@ -256,7 +280,52 @@ class GameSession:
         if result.action != "blocked":
             self._version += 1
         self._reset_input_continuity()
+        return self._story_action(result)
+
+    def _story_action(self, result: StoryResult) -> ActionResult:
+        if result.action == "battle_started":
+            if (
+                self._battle is not None
+                or self._battle_definition is None
+                or self._story is None
+                or self._story.player_pokemon is None
+            ):
+                raise RuntimeError("battle requires a newly granted starter and battle definition")
+            self._battle = BattleSession(
+                self._battle_definition, self._story.player_pokemon, self._world.text_variables
+            )
+            self._reset_input_continuity()
         return ActionResult(cast(Action, result.action), result.reason)
+
+    def battle_action(self, battle_id: str, token: str, slot: int | None) -> ActionResult:
+        if self._battle is None:
+            return ActionResult("blocked", "battle_not_open")
+        reason = self._battle.act(battle_id, token, slot, self._rng)
+        if reason is not None:
+            return ActionResult("blocked", reason)
+        assert self._story is not None
+        self._story.sync_player_pokemon(self._battle.state.player)
+        self._version += 1
+        return ActionResult("battle_turn")
+
+    def acknowledge_battle(self, battle_id: str, batch_id: str) -> ActionResult:
+        if self._battle is None:
+            return ActionResult("blocked", "battle_not_open")
+        reason = self._battle.acknowledge(battle_id, batch_id)
+        if reason is not None:
+            return ActionResult("blocked", reason)
+        self._version += 1
+        if self._battle.state.outcome != "ongoing":
+            assert self._story is not None
+            if self._battle.state.outcome == "player_win":
+                self.money += (
+                    self._battle.definition.trainer_base_money * self._battle.state.rival.level
+                )
+            self._battle = None
+            result = self._story.complete_battle()
+            self._reset_input_continuity()
+            return self._story_action(result)
+        return ActionResult("battle_presented")
 
     def _open_dialog(self, interaction_id: str, interaction: TextInteraction) -> ActionResult:
         if interaction.status == "unsupported":

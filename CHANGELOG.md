@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+- Added a standalone, immutable Python foundation for the first rival battle:
+  source-parsed level-5 starter data, player/trainer DVs and realized stats,
+  starting moves/PP, and rival counter-starter mapping.
+- Added deterministic turn resolution with injected random bytes, source-order
+  rival selection and AI draws, speed ties, critical hits, integer damage,
+  accuracy, Growl/Tail Whip, PP exhaustion, Struggle/recoil, and fainting.
+- Added optional `oracle check --battle-stats` comparisons for all three granted
+  starters' actual ROM DVs, stats, moves, PP, level, and stat experience.
+- Added optional `oracle check --battle` independent live turn and outcome
+  comparisons for all three starters' wins and losses, replaying observed RNG
+  decision bytes into Python and retaining partial traces on validation failure.
+- Connected the source-authored rival challenge to a shared retro/3D browser
+  battle overlay, preserving the player's once-realized starter through combat.
+  Added source starter front/back PNGs, canonical move names and focused dynamic
+  battle text translation, server-owned HP/PP presentation frames, acknowledged
+  event batches, replay-safe turn tokens, keyboard/pointer controls and artwork
+  retry/disconnect handling.
+- Completed first-battle outcomes: source experience/stat experience, level-6
+  stats and HP growth, the ¥175 reward and wallet, and canonical win/loss text.
+  Per-frame level/stat presentation prevents final stats appearing early.
+- Acknowledging the terminal batch now resumes the lab script: heal on either
+  outcome, set the battled event, show the farewell, animate the rival leaving,
+  and restore control. Oak uses postbattle text and the challenge cannot repeat.
+
 ## 0.3.0 - 2026-10-19
 
 - Added an optional, headless PyBoy reference oracle that builds the exact

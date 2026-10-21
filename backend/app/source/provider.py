@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
+from backend.app.models.battle import BattleDefinition
 from backend.app.models.map import WorldDefinition
 from backend.app.models.rendering import RetroMapResources, ThreeDMapResources
 from backend.app.models.story import StoryDefinition
+
+
+@runtime_checkable
+class BattleSource(Protocol):
+    """Optional battle data boundary, independent of overworld source fixtures."""
+
+    def build_battle(self) -> BattleDefinition: ...
 
 
 class GameSource(Protocol):
