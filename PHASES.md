@@ -21,7 +21,7 @@ for implementation details.
 
 ## Phase 3 — Pallet opening story
 
-**Status: Current (Phase 3B)**
+**Status: Complete**
 
 ### Phase 3A — Complete
 
@@ -32,10 +32,20 @@ for implementation details.
 - Add starter choice and a basic party.
 - End the milestone before the rival battle.
 
-### Phase 3B — Current milestone
+### Phase 3B — Complete
 
-- Add the first rival battle: stats, moves, turn flow, battle screen, damage,
-  fainting, experience, and victory.
+- Complete: source-backed level-5 starter stats and moves, immutable Pokémon
+  realization, and a standalone Python turn engine through fainting. Optional
+  live ROM checks cover all granted starter stats, moves, and PP.
+- Complete: story-integrated starter realization and the playable rival battle
+  screen in both renderers, with authoritative HP/PP, ordered text, replay-safe
+  turns, and canonical terminal win/loss results.
+- Complete: experience/stat experience, level-6 stats and HP growth, the wallet
+  and ¥175 reward, healing after either outcome, rival farewell/departure, and
+  return to lab control with postbattle text and no repeated challenge.
+- Complete: live PyBoy comparisons for all three starters' wins and losses,
+  replaying observed decision bytes to validate turns and postbattle outcomes.
+  See the reference-oracle documentation for coverage and evidence.
 
 ## Phase 4 — Route 1 and Viridian City
 

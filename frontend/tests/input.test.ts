@@ -73,6 +73,8 @@ function state(
       player_starter: null,
       rival_starter: null,
       party: [],
+      money: 3000,
+      battle: null,
     },
   };
 }

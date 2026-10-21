@@ -19,18 +19,19 @@ from backend.app.models.story import (
     DialogCommand,
     GrantRivalStarterCommand,
     GrantStarterCommand,
+    HealPartyCommand,
     InteractionTrigger,
     MapEnterTrigger,
     MoveActorToPlayerCommand,
     MovementCommand,
     MovementTrackDefinition,
-    PhaseBoundaryCommand,
     PositionTrigger,
     SelectRivalStarterCommand,
     SelectStarterCommand,
     SetActorCommand,
     SetFlagCommand,
     SetPlayerFacingCommand,
+    StartBattleCommand,
     StarterDefinition,
     StartTrigger,
     StoryCondition,
@@ -87,6 +88,8 @@ TEXT_SOURCES = {
     "rival_take": ("text/OaksLab.asm", "_OaksLabRivalIllTakeThisOneText"),
     "rival_received": ("text/OaksLab.asm", "_OaksLabRivalReceivedMonText"),
     "rival_challenge": ("text/OaksLab.asm", "_OaksLabRivalIllTakeYouOnText"),
+    "rival_farewell": ("text/OaksLab.asm", "_OaksLabRivalSmellYouLaterText"),
+    "oak_raise": ("text/OaksLab.asm", "_OaksLabOak1RaiseYourYoungPokemonText"),
 }
 
 
@@ -169,6 +172,22 @@ def build_pallet_story(root: Path, revision: str, world: WorldDefinition) -> Sto
             "player starter bit": r"set BIT_GOT_STARTER",
             "rival starter event": r"SetEvent EVENT_GOT_STARTER",
             "battle boundary": r"SetEvent EVENT_BATTLED_RIVAL_IN_OAKS_LAB",
+            "heal before battled flag": (
+                r"predef HealParty\s+SetEvent EVENT_BATTLED_RIVAL_IN_OAKS_LAB"
+            ),
+            "rival departure branch": (
+                r"OaksLabRivalStartsExitScript:[\s\S]*?cp 4[\s\S]*?jr nz, \.moveLeft"
+                r"[\s\S]*?ld a, NPC_MOVEMENT_RIGHT[\s\S]*?\.moveLeft[\s\S]*?ld a, NPC_MOVEMENT_LEFT"
+            ),
+            "departure facing timing": (
+                r"OaksLabPlayerWatchRivalExitScript:[\s\S]*?predef HideObject"
+                r"[\s\S]*?ld \[wJoyIgnore\], a[\s\S]*?cp \$5[\s\S]*?SPRITE_FACING_RIGHT"
+                r"[\s\S]*?SPRITE_FACING_LEFT[\s\S]*?cp \$4[\s\S]*?SPRITE_FACING_DOWN"
+            ),
+            "Oak battled text": (
+                r"CheckEventReuseA EVENT_BATTLED_RIVAL_IN_OAKS_LAB[\s\S]*?jr nz, \.check_got_parcel"
+                r"[\s\S]*?\.check_got_parcel[\s\S]*?ld hl, \.RaiseYourYoungPokemonText"
+            ),
             "exit warning faces Oak and rival down": (
                 r"OaksLabPlayerDontGoAwayScript:[\s\S]*?OAKSLAB_OAK1"
                 r"[\s\S]*?SPRITE_FACING_DOWN[\s\S]*?OAKSLAB_RIVAL"
@@ -221,6 +240,7 @@ def build_pallet_story(root: Path, revision: str, world: WorldDefinition) -> Sto
         "engine/overworld/auto_movement.asm",
     )
     movements = {
+        "rival_exit_south": parse_movement(oaks_lab, ".RivalExitMovement", rle=False),
         "player_walk_to_lab": parse_simulated_joypad_rle(auto_movement, "RLEList_PlayerWalkToLab"),
         "oak_walk_to_lab": parse_movement(auto_movement, "RLEList_ProfOakWalkToLab", rle=True),
         "oak_lab_entry": parse_movement(oaks_lab, "OakEntryMovement", rle=False),
@@ -240,6 +260,8 @@ def build_pallet_story(root: Path, revision: str, world: WorldDefinition) -> Sto
         raise ParseError("PlayerWalkToLab RLE no longer expands to 17 steps")
     if len(movements["oak_walk_to_lab"]) != 15:
         raise ParseError("ProfOakWalkToLab RLE no longer expands to 15 movement steps")
+    if movements["rival_exit_south"] != (Direction.SOUTH,) * 5:
+        raise ParseError("unsupported rival departure path")
 
     escort = compile_warp_interrupted_movement(
         world.maps["PALLET_TOWN"],
@@ -545,7 +567,10 @@ def _story_nodes(
             StoryNode(
                 id="rival_battle_boundary",
                 trigger=PositionTrigger(map_id="OAKS_LAB", y=6),
-                conditions=(StoryCondition(flag="EVENT_GOT_STARTER", flag_state=True),),
+                conditions=(
+                    StoryCondition(flag="EVENT_GOT_STARTER", flag_state=True),
+                    StoryCondition(flag="EVENT_BATTLED_RIVAL_IN_OAKS_LAB", flag_state=False),
+                ),
                 commands=(
                     SetActorCommand(
                         map_id="OAKS_LAB",
@@ -557,12 +582,60 @@ def _story_nodes(
                         actor_id="OAKSLAB_RIVAL",
                         player_offset=Position(x=0, y=-1),
                     ),
-                    PhaseBoundaryCommand(reason="rival_battle_deferred"),
+                    StartBattleCommand(continuations=("rival_exit_right", "rival_exit_left")),
                 ),
                 provenance=lab_script,
             ),
         ]
     )
+    nodes.append(
+        StoryNode(
+            id="oak_postbattle",
+            trigger=InteractionTrigger(map_id="OAKS_LAB", actor_id="OAKSLAB_OAK1"),
+            conditions=(StoryCondition(flag="EVENT_BATTLED_RIVAL_IN_OAKS_LAB", flag_state=True),),
+            commands=(DialogCommand(interaction_id="oak_raise", text_ids=("oak_raise",)),),
+            provenance=lab_script,
+        )
+    )
+    for name, side in (("right", Direction.EAST), ("left", Direction.WEST)):
+        nodes.append(
+            StoryNode(
+                id=f"rival_exit_{name}",
+                conditions=(StoryCondition(player_x=4),) if name == "right" else (),
+                commands=(
+                    SetPlayerFacingCommand(facing=Direction.NORTH),
+                    SetActorCommand(
+                        map_id="OAKS_LAB", actor_id="OAKSLAB_RIVAL", facing=Direction.SOUTH
+                    ),
+                    HealPartyCommand(),
+                    SetFlagCommand(flag="EVENT_BATTLED_RIVAL_IN_OAKS_LAB"),
+                    DialogCommand(interaction_id="rival_farewell", text_ids=("rival_farewell",)),
+                    SetPlayerFacingCommand(facing=side),
+                    MovementCommand(
+                        tracks=(MovementTrackDefinition(actor_id="OAKSLAB_RIVAL", steps=(side,)),)
+                    ),
+                    MovementCommand(
+                        tracks=(
+                            MovementTrackDefinition(
+                                actor_id="OAKSLAB_RIVAL", steps=(Direction.SOUTH,)
+                            ),
+                        )
+                    ),
+                    SetPlayerFacingCommand(facing=Direction.SOUTH),
+                    MovementCommand(
+                        tracks=(
+                            MovementTrackDefinition(
+                                actor_id="OAKSLAB_RIVAL", steps=movements["rival_exit_south"][1:]
+                            ),
+                        )
+                    ),
+                    SetActorCommand(map_id="OAKS_LAB", actor_id="OAKSLAB_RIVAL", visible=False),
+                ),
+                provenance=_provenance(
+                    revision, "scripts/OaksLab.asm", "OaksLabRivalEndBattleScript"
+                ),
+            )
+        )
     for ball, starter in starters.items():
         species_name = starter.species.constant.lower()
         yes_nodes = (

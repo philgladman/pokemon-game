@@ -74,6 +74,7 @@ export type ControlMode =
   | "choice"
   | "scripted_movement"
   | "transition"
+  | "battle"
   | "phase_boundary";
 
 export interface ChoiceState {
@@ -106,6 +107,63 @@ export interface PartyMember {
   level: number;
 }
 
+export interface BattleMoveView {
+  slot: number;
+  name: string;
+  pp: number;
+  max_pp: number;
+}
+
+export interface BattlePokemonView {
+  species: string;
+  name: string;
+  level: number;
+  hp: number;
+  max_hp: number;
+  stats: PokemonStats;
+  experience: number;
+  stat_experience: PokemonStats;
+  image_url: string;
+  moves: BattleMoveView[];
+}
+
+export interface PokemonStats {
+  hp: number;
+  attack: number;
+  defense: number;
+  speed: number;
+  special: number;
+}
+
+export interface BattleFrame {
+  text: string;
+  player_hp: number;
+  rival_hp: number;
+  player_pp: number[];
+  player_level: number;
+  player_max_hp: number;
+  player_stats: PokemonStats;
+  rival_level: number;
+  rival_max_hp: number;
+  rival_stats: PokemonStats;
+  show_stats?: boolean;
+}
+
+export interface BattleBatch {
+  id: string;
+  frames: BattleFrame[];
+}
+
+export interface BattleSnapshot {
+  id: string;
+  turn: number;
+  outcome: "ongoing" | "player_win" | "player_loss";
+  player: BattlePokemonView;
+  rival: BattlePokemonView;
+  action_token: string | null;
+  batch: BattleBatch | null;
+}
+
 export interface SessionSnapshot {
   map: MapDefinition;
   player: PlayerState;
@@ -119,6 +177,8 @@ export interface SessionSnapshot {
   player_starter: string | null;
   rival_starter: string | null;
   party: PartyMember[];
+  money: number;
+  battle: BattleSnapshot | null;
 }
 
 export interface StateMessage {
@@ -168,6 +228,8 @@ export interface AppearanceDefinition {
 
 export type ServerMessage = StateMessage | ErrorMessage;
 export type ClientMessage =
+  | { type: "battle_action"; request_id: string; battle_id: string; action_token: string; slot: number | null }
+  | { type: "acknowledge_battle"; request_id: string; battle_id: string; batch_id: string }
   | { type: "move"; request_id: string; direction: Direction; continued: boolean }
   | { type: "interact"; request_id: string }
   | {

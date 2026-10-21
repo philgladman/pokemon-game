@@ -17,8 +17,10 @@ def main() -> None:
     source = PokeredSource(arguments.source_root)
     world = source.build_world()
     story = source.build_story()
+    battle = source.build_battle()
     print(
-        f"validated {len(world.maps)} maps and {len(story.starters)} starters "
+        f"validated {len(world.maps)} maps, {len(story.starters)} starters, "
+        f"and {len(battle.moves)} first-battle moves "
         f"from pret/pokered {world.source_revision}"
     )
 

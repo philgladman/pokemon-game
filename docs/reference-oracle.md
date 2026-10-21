@@ -35,6 +35,51 @@ failure exits 2 with an actionable message.
 make oracle-check
 ```
 
+To also compare the first-battle Pokémon factory against each granted starter,
+including its observed DV bytes, five stats/current HP, starting moves, PP,
+level, and zero stat experience:
+
+```bash
+.venv/bin/python -m tools.pokered_oracle check --battle-stats
+```
+
+These additional comparisons reuse the existing three starter-choice paths.
+They read actual ROM memory without replacing the observed random DVs.
+
+To additionally exercise live first-rival turns and both outcomes for each
+starter, use the independent optional battle suite:
+
+```bash
+.venv/bin/python -m tools.pokered_oracle check --battle --battle-stats
+```
+
+`--battle` also works without `--battle-stats`. It preserves the existing 65
+Phase 3A checkpoints and adds six complete battle branches. Normal joypad input
+drives the ROM; no ROM memory or CPU registers are written to seed outcomes.
+In-memory checkpoints allow bounded retries with different input timing if a
+damage-only strategy loses. The loss strategy selects the starter's stat move.
+
+The suite observes returned decision bytes at `Random`'s validated return
+instruction, attributes each to its actual `BattleRandom` or `TrainerAI` call
+site, and excludes incidental frame, audio, and animation randomness. Those
+bytes replay into the Python resolver and the session through their injected
+RNG API; both must consume the stream exactly. Source-granted DVs enter the
+runtime factory in the source's draw order (speed/special, then attack/defense).
+
+Independent source move hooks compare chosen moves and order, misses, critical
+hits, HP, player PP, stat stages, and effective attack/defense after every move
+and turn. Separate preheal and healed-lab observations compare species, level,
+DVs, full stats, HP/status, moves/PP, experience, stat experience, and money.
+Farewell state, the full rival departure path, restored controls, postbattle Oak
+and remaining-ball text branches, and lab exit/reentry without another battle
+are checked as well. These six live branches do not claim live coverage of rare
+events such as Struggle double knockouts; deterministic unit tests cover those
+mechanics separately.
+
+Battle records and attributed RNG draws are written to
+`.cache/oracle/traces/phase-3b-live-battle-{pokered,runtime}.json`, including
+partial observations before a mismatch or timeout fails the command.
+
 The command validates the pinned, clean source; exports tracked source files to
 `.cache/oracle/build/pokered`; runs `make DEBUG=1 red` there; and verifies the
 canonical Red ROM SHA-1

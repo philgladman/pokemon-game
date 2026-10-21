@@ -16,10 +16,13 @@ from starlette.staticfiles import StaticFiles
 
 from backend.app.engine.game import ActionResult, GameSession
 from backend.app.engine.repository import default_source, load_world
+from backend.app.models.battle import BattleDefinition
 from backend.app.models.map import WorldDefinition
 from backend.app.models.protocol import (
+    AcknowledgeBattleIntent,
     AcknowledgeCueIntent,
     AcknowledgeTransitionIntent,
+    BattleActionIntent,
     ChoiceIntent,
     ClientMessage,
     ErrorMessage,
@@ -30,7 +33,7 @@ from backend.app.models.protocol import (
 from backend.app.models.rendering import ThreeDManifest
 from backend.app.models.story import StoryDefinition
 from backend.app.presentation.three_d import load_three_d_manifest
-from backend.app.source.provider import ApplicationSource
+from backend.app.source.provider import ApplicationSource, BattleSource
 from backend.app.version import __version__
 
 logger = logging.getLogger("pokemon_game")
@@ -47,6 +50,10 @@ def log_event(event: str, **fields: object) -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.world = load_world(app.state.source)
     app.state.story = app.state.source.build_story()
+    battle_source: object = app.state.source
+    if not isinstance(battle_source, BattleSource):
+        raise RuntimeError("the application source must supply first-rival battle definitions")
+    app.state.battle = battle_source.build_battle()
     _validate_three_d_resources(
         app.state.source,
         app.state.world,
@@ -94,6 +101,7 @@ def create_app(
     three_d_manifest: ThreeDManifest | None = None,
     asset_root: Path | None = None,
     story: StoryDefinition | None = None,
+    battle: BattleDefinition | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="Pokémon Red compatibility runtime",
@@ -105,6 +113,7 @@ def create_app(
     if world is not None:
         app.state.world = world
         app.state.story = story
+        app.state.battle = battle
     configured_asset_root = Path(os.environ.get("POKEMON_ASSETS_PATH", DEFAULT_ASSET_ROOT))
     app.mount(
         "/assets",
@@ -159,7 +168,7 @@ def create_app(
     @app.websocket("/ws/game")
     async def game_socket(websocket: WebSocket) -> None:
         await websocket.accept()
-        session = GameSession(app.state.world, app.state.story)
+        session = GameSession(app.state.world, app.state.story, app.state.battle)
         connected = session.response(None, ActionResult("connected"))
         await websocket.send_json(connected.model_dump(mode="json"))
         log_event("session_connected", outcome="success", map_id=session.map_id)
@@ -203,6 +212,12 @@ def create_app(
                     result = session.acknowledge_cue(message.cue_id)
                 elif isinstance(message, AcknowledgeTransitionIntent):
                     result = session.acknowledge_transition(message.transition_id)
+                elif isinstance(message, BattleActionIntent):
+                    result = session.battle_action(
+                        message.battle_id, message.action_token, message.slot
+                    )
+                elif isinstance(message, AcknowledgeBattleIntent):
+                    result = session.acknowledge_battle(message.battle_id, message.batch_id)
                 else:  # pragma: no cover - the discriminated union is exhaustive.
                     raise AssertionError("unhandled client message")
                 response = session.response(message.request_id, result)

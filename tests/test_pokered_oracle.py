@@ -568,7 +568,7 @@ def configure_cli_fakes(
     monkeypatch.setattr(
         oracle_cli,
         "run_phase3a_coverage",
-        lambda *args: CoverageResult(
+        lambda *args, **kwargs: CoverageResult(
             runtime=coverage_runtime,
             source=coverage_source,
             scenarios=("movement/held-input",),
@@ -599,7 +599,7 @@ def test_cli_check_propagates_phase3a_contract_mismatch(
     monkeypatch.setattr(
         oracle_cli,
         "run_phase3a_coverage",
-        lambda *args: (_ for _ in ()).throw(
+        lambda *args, **kwargs: (_ for _ in ()).throw(
             OracleError("semantic trace mismatch: starter-squirtle-complete")
         ),
     )

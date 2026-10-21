@@ -15,6 +15,7 @@ ControlMode = Literal[
     "scripted_movement",
     "transition",
     "phase_boundary",
+    "battle",
 ]
 
 
@@ -279,6 +280,15 @@ class PhaseBoundaryCommand(FrozenStrictModel):
     reason: str
 
 
+class StartBattleCommand(FrozenStrictModel):
+    type: Literal["start_battle"] = "start_battle"
+    continuations: tuple[str, ...] = ()
+
+
+class HealPartyCommand(FrozenStrictModel):
+    type: Literal["heal_party"] = "heal_party"
+
+
 StoryCommand = Annotated[
     SetFlagCommand
     | SetActorCommand
@@ -292,7 +302,9 @@ StoryCommand = Annotated[
     | GrantStarterCommand
     | SelectRivalStarterCommand
     | GrantRivalStarterCommand
-    | PhaseBoundaryCommand,
+    | PhaseBoundaryCommand
+    | StartBattleCommand
+    | HealPartyCommand,
     Field(discriminator="type"),
 ]
 
@@ -354,6 +366,15 @@ class StoryDefinition(StrictModel):
                         f"story node {node.id} references unknown flag {condition.flag}"
                     )
             for command in node.commands:
+                if isinstance(command, StartBattleCommand) and command.continuations:
+                    if any(target not in nodes_by_id for target in command.continuations):
+                        raise ValueError(f"story node {node.id} has unknown battle continuations")
+                    if any(
+                        nodes_by_id[target].trigger is not None for target in command.continuations
+                    ):
+                        raise ValueError("battle continuations must not have triggers")
+                    if nodes_by_id[command.continuations[-1]].conditions:
+                        raise ValueError("battle continuations require an unconditional fallback")
                 if isinstance(command, SetFlagCommand) and command.flag not in self.event_flags:
                     raise ValueError(f"story node {node.id} sets unknown flag {command.flag}")
                 if isinstance(command, SetActorCommand):

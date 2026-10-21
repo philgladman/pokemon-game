@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from backend.app.engine.pokemon import ByteRng, generate_player_starter
 from backend.app.engine.text import resolve_text_pages
+from backend.app.models.battle import BattleDefinition, BattlePokemon
 from backend.app.models.common import Direction, Position
 from backend.app.models.map import (
     BackgroundEvent,
@@ -20,6 +22,7 @@ from backend.app.models.story import (
     DialogCommand,
     GrantRivalStarterCommand,
     GrantStarterCommand,
+    HealPartyCommand,
     InteractionTrigger,
     MapEnterTrigger,
     MapState,
@@ -35,6 +38,7 @@ from backend.app.models.story import (
     SetActorCommand,
     SetFlagCommand,
     SetPlayerFacingCommand,
+    StartBattleCommand,
     StartTrigger,
     StoryCommand,
     StoryCondition,
@@ -54,10 +58,19 @@ class StoryResult:
 class StoryRunner:
     """Generic executor for a validated, source-compiled story command graph."""
 
-    def __init__(self, world: WorldDefinition, definition: StoryDefinition) -> None:
+    def __init__(
+        self,
+        world: WorldDefinition,
+        definition: StoryDefinition,
+        battle: BattleDefinition | None = None,
+        rng: ByteRng | None = None,
+    ) -> None:
         self._validate_world(definition, world)
         self.world = world
         self.definition = definition
+        self.battle_definition = battle
+        self.rng = rng
+        self.player_pokemon: BattlePokemon | None = None
         self.map_id = definition.start_map
         self.player = PlayerState(
             position=definition.start_position,
@@ -81,6 +94,7 @@ class StoryRunner:
         self._nodes = {node.id: node for node in definition.nodes}
         self._commands: list[StoryCommand] = []
         self._choice_branches: dict[str, tuple[str, ...]] = {}
+        self._battle_continuations: tuple[str, ...] = ()
         self._next_cue = 1
         self._next_choice = 1
         self._next_transition = 1
@@ -254,6 +268,32 @@ class StoryRunner:
             self._commands = [*entered.commands, *self._commands]
         return self._resume("transition_completed")
 
+    def complete_battle(self) -> StoryResult:
+        """Resume the source script only after its terminal presentation was acknowledged."""
+        if self.control_mode != "battle":
+            raise RuntimeError("no story battle is suspended")
+        branch = next(
+            (
+                self._nodes[node_id]
+                for node_id in self._battle_continuations
+                if all(
+                    self._condition_matches(condition)
+                    for condition in self._nodes[node_id].conditions
+                )
+            ),
+            None,
+        )
+        self._battle_continuations = ()
+        if branch is not None:
+            self._commands = [*branch.commands, *self._commands]
+        self.control_mode = "free"
+        return self._resume("battle_presented")
+
+    def sync_player_pokemon(self, pokemon: BattlePokemon) -> None:
+        self.player_pokemon = pokemon
+        if self.party:
+            self.party = [self.party[0].model_copy(update={"level": pokemon.level})]
+
     def _start_node(self, node: StoryNode) -> StoryResult:
         if self._commands:
             raise RuntimeError(f"cannot start story node {node.id} while another node is active")
@@ -311,6 +351,34 @@ class StoryRunner:
             elif isinstance(command, PhaseBoundaryCommand):
                 self.control_mode = "phase_boundary"
                 return StoryResult("phase_boundary", command.reason)
+            elif isinstance(command, StartBattleCommand):
+                if self.battle_definition is None:
+                    self.control_mode = "phase_boundary"
+                    return StoryResult("phase_boundary", "rival_battle_deferred")
+                self.control_mode = "battle"
+                self._battle_continuations = command.continuations
+                return StoryResult("battle_started")
+            elif isinstance(command, HealPartyCommand):
+                if self.player_pokemon is None or self.battle_definition is None:
+                    raise RuntimeError("HealParty requires the realized starter")
+                pokemon = self.player_pokemon
+                self.sync_player_pokemon(
+                    pokemon.model_copy(
+                        update={
+                            "hp": pokemon.stats.hp,
+                            "moves": tuple(
+                                move.model_copy(
+                                    update={
+                                        "pp": self.battle_definition.move_named(move.constant).pp
+                                    }
+                                )
+                                for move in pokemon.moves
+                            ),
+                            "attack_stage": 0,
+                            "defense_stage": 0,
+                        }
+                    )
+                )
             else:  # pragma: no cover
                 raise AssertionError("unhandled story command")
         return StoryResult(completion_action)
@@ -464,6 +532,12 @@ class StoryRunner:
         if self._selected_player_starter != starter_key:
             raise RuntimeError("player starter grant does not match the selected starter")
         starter = self.definition.starters[starter_key]
+        if self.battle_definition is not None:
+            if self.rng is None or self.player_pokemon is not None:
+                raise RuntimeError("starter may only be realized once")
+            self.player_pokemon = generate_player_starter(
+                self.battle_definition, starter.species.constant, self.rng
+            )
         self.has_starter = True
         self.party = [
             PartyMember(species_id=starter.species.id, name=starter.species.name, level=5)

@@ -14,6 +14,9 @@ from .artifacts import (
     resolve_rgbds,
     validate_artifacts,
 )
+from .battle_coverage import BattleCoverage, ObservedRandom
+from .battle_observer import BattleObserver
+from .battle_stats import validate_granted_starter
 from .coverage import run_phase3a_coverage
 from .emulator import OracleEmulator, PyBoyAdapter
 from .errors import OracleError
@@ -37,6 +40,16 @@ def parser() -> argparse.ArgumentParser:
     )
     result.add_argument("--source-root", type=Path)
     result.add_argument("--force-build", action="store_true")
+    result.add_argument(
+        "--battle",
+        action="store_true",
+        help="also compare live first-rival turns and win/loss outcomes for all starters",
+    )
+    result.add_argument(
+        "--battle-stats",
+        action="store_true",
+        help="also compare granted starter stats/DVs/moves/PP against the Python battle factory",
+    )
     return result
 
 
@@ -82,6 +95,15 @@ def run(argv: Sequence[str] | None = None) -> int:
     metadata = SourceMetadata.read(paths.source_root)
     adapter = PyBoyAdapter(artifacts)
     emulator = OracleEmulator(adapter, symbols, metadata, world)
+
+    def starter_granted(species: str) -> None:
+        validate_granted_starter(
+            source.build_battle(),
+            species,
+            lambda label, offset: adapter.read(symbols[label].address + offset),
+        )
+        print(f"oracle battle stats: {species} matches observed DVs, stats, moves and PP")
+
     try:
         source_trace = run_scenario(
             NEW_GAME_SCENARIO,
@@ -89,7 +111,21 @@ def run(argv: Sequence[str] | None = None) -> int:
             origin="pokered",
             source_revision=source.revision,
         )
-        runtime = RuntimeAdapter(world, story)
+        observer = BattleObserver(emulator, artifacts.rom) if arguments.battle else None
+        rng = ObservedRandom(observer) if observer is not None else None
+        definition = source.build_battle() if arguments.battle else None
+        runtime = (
+            RuntimeAdapter(world, story, definition, rng)
+            if definition is not None
+            else RuntimeAdapter(world, story)
+        )
+        battles = (
+            BattleCoverage(
+                SourceGameplayDriver(emulator, world), runtime, definition, observer, rng, paths
+            )
+            if definition is not None and observer is not None and rng is not None
+            else None
+        )
         recorder = TraceRecorder(NEW_GAME_SCENARIO.id, "runtime", source.revision)
         recorder.record(
             project_state(
@@ -119,6 +155,8 @@ def run(argv: Sequence[str] | None = None) -> int:
             story,
             source.revision,
             lambda trace: _write_trace(trace, paths),
+            on_starter_granted=starter_granted if arguments.battle_stats else None,
+            on_starter_complete=battles.run_starter if battles is not None else None,
         )
     finally:
         emulator.stop()
