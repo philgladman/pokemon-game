@@ -21,6 +21,7 @@ dev = [
   "pytest>=8.3,<9",
   "pytest-cov>=6,<7",
   "ruff>=0.9,<1",
+  "websockets>=14,<17",
 ]
 oracle = [
   "pyboy==2.8.1",
@@ -43,5 +44,5 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["backend", "tools"]
+packages = ["backend", "tools", "sameboy"]
 

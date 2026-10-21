@@ -1,0 +1,3 @@
+load-module module-native-protocol-unix socket=/run/user/1000/pulse/native auth-anonymous=1
+load-module module-null-sink sink_name=game rate=48000 channels=2
+set-default-sink game
