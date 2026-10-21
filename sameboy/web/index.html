@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SameBoy · Pokémon Red</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #101923; color: #e9efed; }
+    body { margin: 0 auto; max-width: 1000px; padding: 24px; }
+    h1 { font-size: 1.5rem; margin-bottom: 8px; }
+    p { line-height: 1.6; color: #bccbc7; }
+    .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 16px 0; }
+    button { font: inherit; background: #294c42; color: white; border: 1px solid #5f8d7d; border-radius: 6px; padding: 10px 16px; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: wait; }
+    button:focus-visible, #screen:focus-visible { outline: 3px solid #a6dbac; outline-offset: 3px; }
+    #screen { height: min(68vh, 650px); min-height: 280px; background: #050807; border: 1px solid #456057; border-radius: 8px; overflow: hidden; }
+    #screen canvas { image-rendering: pixelated; }
+    kbd { border: 1px solid #5f766d; border-radius: 3px; padding: 1px 5px; color: #e9efed; }
+    .status { font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <h1>SameBoy · Pokémon Red</h1>
+  <p>Click the game to focus it, then use your keyboard. Enable audio when you are ready to listen.</p>
+  <div class="toolbar">
+    <button id="reconnect" type="button">Reconnect display</button>
+    <button id="audio" type="button">Enable audio</button>
+    <span id="status" class="status" role="status">Connecting display…</span>
+    <span id="audio-status" class="status" role="status">Audio off</span>
+  </div>
+  <div id="screen" tabindex="0" role="application" aria-label="SameBoy game display. Click to focus and use keyboard controls."></div>
+  <p><kbd>↑ ↓ ← →</kbd> Move · <kbd>X</kbd> A · <kbd>Z</kbd> B · <kbd>Enter</kbd> Start · <kbd>Backspace</kbd> Select · <kbd>Esc</kbd> Menu · hold <kbd>Space</kbd> Turbo</p>
+  <p>Audio streams from the emulator in this container. Reconnect display restores a dropped connection; enable audio again if its stream disconnects.</p>
+  <script type="module" src="/player.js"></script>
+</body>
+</html>

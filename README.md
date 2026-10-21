@@ -7,6 +7,11 @@ client renders the same normalized state as a 160×144 retro Canvas view.
 
 See [project phases](PHASES.md) for the current scope and milestone boundaries.
 
+The original 2D game can also run in SameBoy through Docker and noVNC at
+<http://127.0.0.1:8081>, with persistent profiles and opt-in browser audio.
+See the separate [SameBoy workflow](docs/sameboy.md) for source compilation,
+startup, controls and saves. The recreation below remains on port 8080.
+
 No Pokémon graphics or source-derived game data are committed here. They are
 read at runtime from a local, ignored `pret/pokered` checkout.
 

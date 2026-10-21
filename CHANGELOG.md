@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added a separate loopback-only SameBoy 1.0.4 Docker/noVNC workflow with
+  source-built ROM input, native CGB compatibility color, project-scoped save
+  volumes, graceful SDL shutdown, and opt-in bounded PCM browser audio.
+- Documented controls, baseline/modified profile isolation, save retention,
+  audio acceptance limits, and startup/health troubleshooting.
+- Revised the phase roadmap toward an original 2D SameBoy/Docker browser
+  workflow, followed by source-customized ROMs and existing-app iPhone play;
+  preserved the completed recreation as reference and deferred 3D exploration.
 - Added a standalone, immutable Python foundation for the first rival battle:
   source-parsed level-5 starter data, player/trainer DVs and realized stats,
   starting moves/PP, and rival counter-starter mapping.
