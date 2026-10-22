@@ -1,127 +1,158 @@
-# Original game in a browser
+# Original games in a browser
 
-The current workflow runs SameBoy's Linux SDL frontend on a private virtual
-display in Docker Desktop, with noVNC video and a separate browser audio stream.
-SameBoy uses Mesa software OpenGL on a 320×288 virtual display (2× Game Boy
-resolution), scaled to fit the browser. Matching the window and virtual display
-avoids SDL fullscreen cropping without requiring a desktop window manager.
-Keep SameBoy's window scale at its default 2×; use browser zoom to resize the
-player. A larger emulator window would exceed this fixed virtual display.
+SameBoy's Linux SDL frontend runs on a private Docker virtual display, with
+noVNC video and a separate browser audio stream. Mesa software OpenGL renders
+at 320×288 (2× Game Boy resolution). Keep SameBoy's window scale at its default
+2×; use browser zoom to resize without exceeding the fixed virtual display.
 
 ## Build and play
 
-Only Git, Docker Desktop, and Compose v2 are required on the host. From the
-repository root, fetch the canonical source and build the local Red ROM:
+After cloning this project, only Docker Desktop and Compose v2 are needed:
 
 ```bash
-git clone https://github.com/pret/pokered.git external/pokered
-git -C external/pokered checkout af519899719f0754965776faac0e836a3b906e6d
-docker compose -p pokemon-baseline -f compose.sameboy.yml run --build --rm rom-builder
-docker compose -p pokemon-baseline -f compose.sameboy.yml up --build -d --wait
+docker compose up --build -d --wait
+# Or choose blue, yellow, gold, silver, or crystal:
+POKEMON_GAME=yellow docker compose up --build -d --wait
 ```
 
-The `rom-builder` service is profile-gated and runs only when explicitly
-requested. It has RGBDS 1.0.4, Python, Git, and compiler tools inside its Docker
-image. Source is mounted read-only. The builder rejects a different HEAD or
-normal tracked staged/unstaged edits, ignores untracked files, and exports the pinned Git tree
-to temporary storage rather than building the checkout. Even files hidden by
-Git index flags cannot enter the build. A verified canonical Red SHA-1
-`ea9bcae617fdf159b045185467ae58b2e4a48b9a` is required before publishing
-`pokered.gbc` and `pokered.sym` under `.cache/roms/pokered`.
-Concurrent builder invocations serialize; compile or hash failures leave the
-previous artifacts intact; unrelated files in the output directory are retained.
-
-For subsequent rebuilds, **stop SameBoy before replacing its mounted ROM**:
-
-```bash
-docker compose -p pokemon-baseline -f compose.sameboy.yml stop sameboy
-docker compose -p pokemon-baseline -f compose.sameboy.yml run --build --rm rom-builder
-docker compose -p pokemon-baseline -f compose.sameboy.yml up -d --force-recreate --wait
-```
-
-This builder intentionally supports only canonical Red, not patched games.
-Source customization and Red/Blue/Yellow/Gold/Silver/Crystal game selection
-remain future work. A separately compiled custom ROM can already be supplied
-with `SAMEBOY_ROM` as shown below.
-
-Open <http://127.0.0.1:8081>. Click the display to focus it. Arrows move, X is A,
+Open <http://127.0.0.1:8080>. Click the display to focus it. Arrows move, X is A,
 Z is B, Enter is Start, Backspace is Select, Escape opens SameBoy's menu, and
-Space holds turbo. Click **Enable audio** to allow the browser to play sound.
-Use **Reconnect** after restarting the container. Audio requires a browser with
-AudioWorklet support; localhost is a secure browser context. No native Mac
-emulator, host display, audio socket, Nintendo BIOS, or downloaded ROM is used.
+Space holds turbo. Click **Enable audio** to allow sound; **Reconnect** reconnects
+after a container restart. AudioWorklet support and a secure context are needed;
+localhost qualifies. No native emulator, host display/audio device, Nintendo
+BIOS, or downloaded ROM is used.
 
-The default CGB-E model uses SameBoy's open-source boot ROM and the cartridge's
-native compatibility palette. For monochrome, set `SAMEBOY_MODEL=dmg` before
-`up --force-recreate`. This changes hardware emulation, not game content.
+The default CGB-E model uses SameBoy's open-source boot ROM and cartridge-native
+compatibility palette. `SAMEBOY_MODEL=dmg` selects monochrome hardware for Gen 1;
+Crystal requires Game Boy Color hardware. Model selection does not alter ROMs.
 
-## Saves and isolated profiles
+## Source selection and verification
 
-Use the game's normal Start → SAVE flow. Battery RAM is stored in
-`/profile/game.sav`, independently of the container and read-only ROM. SameBoy
-also stores preferences and any manually created emulator states in the same
-profile volume. The managed `/profile/game.gb` symlink gives SameBoy a stable
-writable location for its filename-derived save files.
+`compose.yaml` passes these same variables to the builder and player:
 
-Keep the same Compose project name to reuse a profile:
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `POKEMON_GAME` | `red` | Game and its build target/filename |
+| `POKEMON_SOURCE_REPO` | Selected game's catalog URL | Credential-free HTTPS Git repository |
+| `POKEMON_SOURCE_VERSION` | Selected game's catalog commit | Exact lowercase 40-character commit, not a branch |
+| `POKEMON_ROM_SHA1` | Selected game's canonical checksum | Required expected output checksum |
+| `SAMEBOY_PORT` | `8080` | Loopback browser port |
+| `SAMEBOY_MODEL` | `cgb-e` | Emulator hardware model |
+
+The catalog in [`sameboy/games.py`](../sameboy/games.py) pins these English games
+and RGBDS 1.0.4:
+
+| Game | Source repository | Pinned commit | ROM SHA-1 |
+| --- | --- | --- | --- |
+| Red | [pret/pokered](https://github.com/pret/pokered) | `af519899719f0754965776faac0e836a3b906e6d` | `ea9bcae617fdf159b045185467ae58b2e4a48b9a` |
+| Blue | [pret/pokered](https://github.com/pret/pokered) | `af519899719f0754965776faac0e836a3b906e6d` | `d7037c83e1ae5b39bde3c30787637ba1d4c48ce2` |
+| Yellow | [pret/pokeyellow](https://github.com/pret/pokeyellow) | `b6696f24b3be84fe64cf702f5a15ba40c66b7f39` | `cc7d03262ebfaf2f06772c1a480c7d9d5f4a38e1` |
+| Gold | [pret/pokegold](https://github.com/pret/pokegold) | `fc702b6d922aecce274782d68bba8639936a1182` | `d8b8a3600a465308c9953dfa04f0081c05bdcb94` |
+| Silver | [pret/pokegold](https://github.com/pret/pokegold) | `fc702b6d922aecce274782d68bba8639936a1182` | `49b163f7e57702bc939d642a18f591de55d92dae` |
+| Crystal (v1.0) | [pret/pokecrystal](https://github.com/pret/pokecrystal) | `5c877ef55197039c9676e8e3eec6d254b1c40fe8` | `f4cd194bdee0d04ca4eac29e09b8e4e9d818c133` |
+
+The builder clones each repository once into a managed bare cache in the
+`sources` named volume. Later runs fetch branches/tags, resolve the exact
+configured commit, and export that committed tree into temporary build storage.
+There is no `pull` or host checkout modification. Source locks serialize access.
+An unavailable remote or revision fails startup rather than silently falling
+back to stale source, even if a ROM is cached.
+
+Builds run `make -B DEBUG=1 <game>` and require the expected ROM checksum and
+nonempty symbols. Verified artifacts are atomically published together under
+`/roms/<game>/<configuration digest>/` in the `roms` volume. The digest includes
+repository, revision, target, filename, checksum, and toolchain. Repeat builds
+verify and reuse that immutable artifact; failures cannot replace another
+configuration. The runtime mounts artifacts read-only, verifies the same
+selection, and starts only after the builder succeeds. A corrupt cached artifact
+fails closed rather than being used.
+
+Compatible forks/revisions can override the repository, commit, and expected
+checksum together. Build targets and filenames remain those of the selected
+catalog game. Arbitrary projects or toolchain requirements are not supported by
+these overrides. Never disable checksum verification for a modified ROM.
+Store persistent selections in ignored `.env`; otherwise repeat them for each
+`up`/`run`. Do not place credentials in repository URLs.
+
+## Images and startup
+
+Compose's `build.context: sameboy` and `build.target` build local images, so
+there is no prebuilt `image:` download for these services. The stages live in
+[`sameboy/Dockerfile`](../sameboy/Dockerfile): `rom-builder` includes Git, Python,
+compiler tools and RGBDS; `runtime` includes SameBoy, display, audio, and browser
+transports. Debian, RGBDS, SameBoy, and noVNC inputs are pinned; source archive
+SHA-256 checksums are checked. OS packages receive Debian updates on rebuild.
+
+`rom-builder` is a one-shot startup dependency. Its successful exit is expected,
+not a crashed game. `sameboy` has a health check; `--wait` waits for readiness.
+An ordinary `up` runs source preparation; `restart sameboy` only restarts the
+already configured emulator and does not change the selected game or fetch.
+
+## Saves and migration
+
+The top-level Compose project name defaults to `pokemon-baseline`, preserving
+`pokemon-baseline_profile` without a migration command. Existing Red battery
+RAM stays `/profile/game.sav`, and its old managed ROM symlink is safely replaced.
+Other games have `/profile/games/<game>/game.sav`. SameBoy preferences, emulator
+states, and RTC data are isolated with each game's profile too. Returning to Red
+uses the same Red save. Source/ROM caches are independent of profile storage.
+
+Use the normal Start → SAVE flow, then stop gracefully:
 
 ```bash
-docker compose -p pokemon-baseline -f compose.sameboy.yml restart
-docker compose -p pokemon-baseline -f compose.sameboy.yml up -d --force-recreate --wait
-docker compose -p pokemon-baseline -f compose.sameboy.yml down
+docker compose down
+POKEMON_GAME=gold docker compose up -d --wait
 ```
 
-`down` retains saves. **Do not add `-v` unless you intend to delete that project's
-profile.** Normal stop requests SDL quit and waits for SameBoy to flush battery
-RAM before shutting down its display and audio. Forced termination, Docker
-Desktop crashes, or power loss cannot guarantee a final save flush.
+`down` retains all volumes. **Never add `-v` unless you intend to delete saves
+and caches.** Normal stop requests SDL quit and waits for battery RAM to flush.
+Forced termination, Docker crashes, or power loss cannot guarantee a final flush.
+Back up the profile volume before experimenting with incompatible modified ROMs.
+Use a different project name (`-p pokemon-modified`) to isolate modified saves;
+source and artifact caches are then also project-scoped.
 
-Use a different project and port for a modified ROM:
+## Prebuilt custom ROM
+
+A separate overlay retains support for a locally compiled ROM without fetching
+source. It deliberately bypasses the builder and canonical checksum check;
+provide a ROM you trust and use a separate project/profile:
 
 ```bash
-SAMEBOY_PORT=8082 SAMEBOY_ROM=/absolute/path/to/local/modified.gbc \
-  docker compose -p pokemon-modified -f compose.sameboy.yml up --build -d --wait
+SAMEBOY_PORT=8082 SAMEBOY_ROM=/absolute/path/to/modified.gbc \
+  docker compose -p pokemon-modified -f compose.yaml -f compose.custom.yaml \
+  up --build -d --wait --no-deps sameboy
 ```
 
-This creates `pokemon-modified_profile`, separate from
-`pokemon-baseline_profile`. Reusing a project with another ROM intentionally
-reuses its save; choose the project name carefully. ROM paths must already
-exist; Compose refuses a missing bind source. Keep compiled ROMs, exported
-saves and emulator artifacts in ignored `.cache/` storage.
+The bind source must exist; Compose will not create it. Set `POKEMON_GAME` too
+if the ROM should use a non-Red per-game save slot. No ROM or save is copied into
+this repository by normal startup. Compiled artifacts can later be exported from
+the `roms` volume for import into the existing SameBoy iPhone app; actual device
+verification remains a separate milestone.
 
-## Audio and runtime behavior
+## Audio, security, and troubleshooting
 
 PulseAudio captures only the container's private null sink. A loopback WebSocket
-bridge sends 48 kHz, stereo signed 16-bit PCM to an AudioWorklet. The browser
-resamples for its actual output rate, bounds queued audio, drops stale samples
-and emits silence on underrun. This is an uncompressed local stream, roughly
-192 KB/s per listening browser, with up to eight audio clients. Disable and
-enable audio again after an audio failure. Visual noVNC connectivity alone does
-not establish audio delivery. Automated checks verified nonzero PCM, nonzero
-browser worklet output, bounded buffering and reconnect with browser output
-muted. Actual listening quality remains a separate manual acceptance check.
+streams 48 kHz stereo signed 16-bit PCM to an AudioWorklet. The browser resamples,
+bounds queues, drops stale samples, and emits silence on underrun. Uncompressed
+audio is roughly 192 KB/s per listening browser, capped at eight clients. Disable
+and re-enable audio after a failure. Video connectivity alone does not prove
+audio works. Automated checks use muted browser output; listening quality still
+needs manual acceptance.
 
-Only port 8081 is published, bound to the Mac's loopback interface. VNC,
-websockify and PCM sockets stay inside the container. This is a local desktop
-workflow, without authentication; do not expose it through a proxy or public
-interface. The container runs as UID 1000 without added capabilities or host
-device access. SameBoy, noVNC, and RGBDS source archives have pinned versions and
-verified SHA-256 checksums in the Dockerfile. OS packages receive Debian updates
-when rebuilding.
-
-## Troubleshooting
+Only the browser port is published, bound to loopback. Internal VNC and PCM
+sockets are not exposed. This unauthenticated workflow must not be published
+through a public proxy/interface. The emulator runs as UID 1000 with no added
+capabilities or host-device access. Source builds execute upstream Makefiles
+inside the builder: only configure repositories you trust.
 
 ```bash
-docker compose -p pokemon-baseline -f compose.sameboy.yml ps
-docker compose -p pokemon-baseline -f compose.sameboy.yml logs --tail=80
+docker compose ps -a
+docker compose logs --tail=80 rom-builder sameboy
 ```
 
-Startup and health checks are bounded; a failed display, audio, emulator or
-transport stops the container. `runtime_ready` means all transports started.
-`emulator_stopped outcome=graceful` confirms the SDL quit path completed. A
-`save_flush=unconfirmed` error means the emulator had to be forced down; inspect
-the logs before relying on the most recent save. If 8081 is occupied, choose
-another `SAMEBOY_PORT`.
-
-The workflow does not change or complete the future custom-ROM and iPhone
-milestones in [the roadmap](../PHASES.md).
+Startup and health checks are bounded. `runtime_ready` means transports started;
+`emulator_stopped outcome=graceful` confirms normal SDL quit. A
+`save_flush=unconfirmed` error means forced shutdown: inspect before relying on
+the latest save. If port 8080 is occupied, choose another `SAMEBOY_PORT`. Rebuild
+failures do not delete saves or previously published configurations. See
+[the roadmap](../PHASES.md) for custom-game and iPhone scope.

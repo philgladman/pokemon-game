@@ -19,7 +19,7 @@ for current commands and acceptance limits.
 
 ## Phase 2 — One-command Gen 1 and Gen 2 setup
 
-**Status: Next**
+**Status: Implemented**
 
 - Support Red, Blue, Yellow, Gold, Silver, and Crystal.
 - Fetch and cache game source inside Docker; select a configured repository and
@@ -27,6 +27,8 @@ for current commands and acceptance limits.
 - Define each game's build target, toolchain requirements, and expected ROM checksum.
 - Start the selected game with one Compose command after cloning this project.
 - Keep independent saves for each game and preserve existing Red progress.
+- Keep the default `pokemon-baseline` project and Red save paths unchanged.
+- Verify cached artifacts on reuse and gate emulator startup on source/build success.
 
 ## Phase 3 — Source-customized games
 

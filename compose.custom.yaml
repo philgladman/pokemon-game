@@ -1,0 +1,12 @@
+# Start only sameboy with --no-deps: a prebuilt custom ROM needs no source build.
+services:
+  sameboy:
+    environment:
+      SAMEBOY_ROM: /custom/game.gb
+    volumes:
+      - type: bind
+        source: ${SAMEBOY_ROM:?Set SAMEBOY_ROM to an existing absolute ROM path}
+        target: /custom/game.gb
+        read_only: true
+        bind:
+          create_host_path: false

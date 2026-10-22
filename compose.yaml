@@ -1,0 +1,54 @@
+name: pokemon-baseline
+
+x-game-environment: &game-environment
+  POKEMON_GAME: ${POKEMON_GAME:-crystal}
+  # Empty overrides use the selected game's pinned catalog values.
+  POKEMON_SOURCE_REPO: ${POKEMON_SOURCE_REPO:-}
+  POKEMON_SOURCE_VERSION: ${POKEMON_SOURCE_VERSION:-}
+  POKEMON_ROM_SHA1: ${POKEMON_ROM_SHA1:-}
+
+services:
+  rom-builder:
+    build:
+      context: sameboy
+      target: rom-builder
+    environment: *game-environment
+    volumes:
+      - sources:/sources
+      - roms:/roms
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+  sameboy:
+    build:
+      context: sameboy
+      target: runtime
+    depends_on:
+      rom-builder:
+        condition: service_completed_successfully
+    init: true
+    ports:
+      - "127.0.0.1:${SAMEBOY_PORT:-8080}:8080"
+    environment:
+      <<: *game-environment
+      SAMEBOY_MODEL: ${SAMEBOY_MODEL:-cgb-e}
+    volumes:
+      - roms:/roms:ro
+      - profile:/profile
+    stop_grace_period: 25s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python3", "-m", "sameboy.run", "--health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  sources:
+  roms:
+  profile:

@@ -14,6 +14,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from sameboy.games import configured_game, verify_artifacts
+
 LOGGER = logging.getLogger("sameboy.runtime")
 READY = Path("/tmp/sameboy-ready.json")
 
@@ -128,9 +130,37 @@ def health() -> bool:
             os.kill(pid, 0)
         # The supervisor watches all children; avoid opening fake WebSocket/VNC
         # sessions on every health check, which produces handshake error logs.
-        return tcp_ready(8081)
+        return tcp_ready(8080)
     except (OSError, ValueError):
         return False
+
+
+def prepare_game(roms: Path, profile: Path) -> tuple[Path, Path]:
+    game = configured_game()
+    custom = os.environ.get("SAMEBOY_ROM")
+    rom = Path(custom) if custom else verify_artifacts(game, game.directory(roms))
+    if not rom.is_file() or rom.stat().st_size < 0x150:
+        raise RuntimeError("ROM missing or invalid")
+    root = profile.resolve(strict=True)
+    selected = profile if game.name == "red" else profile / "games" / game.name
+    if game.name != "red" and ((profile / "games").is_symlink() or selected.is_symlink()):
+        raise RuntimeError("game profile must not contain symlink directories")
+    if not selected.resolve().is_relative_to(root):
+        raise RuntimeError("game profile escapes the profile volume")
+    selected.mkdir(parents=True, exist_ok=True)
+    link = selected / "game.gb"
+    if link.is_symlink():
+        previous = link.readlink()
+        if previous != rom and (
+            not previous.is_absolute()
+            or previous.parts[1:2] not in [("rom",), ("roms",), ("custom",)]
+        ):
+            raise RuntimeError("game.gb is not the managed ROM symlink")
+        link.unlink()
+    elif link.exists():
+        raise RuntimeError("game.gb exists and is not the managed ROM symlink")
+    link.symlink_to(rom)
+    return link, selected
 
 
 def main() -> int:
@@ -158,18 +188,10 @@ def main() -> int:
     signal.signal(signal.SIGINT, request_stop)
     READY.unlink(missing_ok=True)
     try:
-        rom = Path("/rom/pokered.gbc")
-        if not rom.is_file() or rom.stat().st_size < 0x150:
-            raise RuntimeError("ROM missing or invalid; run the documented source build")
         model = os.environ.get("SAMEBOY_MODEL", "cgb-e")
         if model not in {"cgb-e", "dmg"}:
             raise RuntimeError("SAMEBOY_MODEL must be cgb-e or dmg")
-        link = Path("/profile/game.gb")
-        if link.is_symlink():
-            link.unlink()
-        elif link.exists():
-            raise RuntimeError("/profile/game.gb exists and is not the managed ROM symlink")
-        link.symlink_to(rom)
+        link, profile = prepare_game(Path("/roms"), Path("/profile"))
         # Without a window manager SDL's fullscreen request doesn't resize its
         # initial 2x window. Match the virtual screen to that native window.
         start("display", "Xvfb", ":99", "-screen", "0", "320x288x24", "-nolisten", "tcp")
@@ -183,15 +205,29 @@ def main() -> int:
             "--high-priority=no",
             "--realtime=no",
             "-n",
-            "--file=/app/pulse.pa",
+            "--file=/app/sameboy/pulse.pa",
             "--disallow-exit",
         )
         ready(lambda: command_ready("pactl", "set-default-sink", "game"))
         audio_ready = Path("/tmp/sameboy-audio-ready")
         audio_ready.unlink(missing_ok=True)
-        start("audio", "python3", "/app/audio.py")
+        start("audio", "python3", "-m", "sameboy.audio")
         ready(audio_ready.is_file)
-        emulator = start("sameboy", "/opt/sameboy/sameboy", "--model", model, str(link))
+        # SameBoy preferences, RTC, states and battery saves follow the selected
+        # game's profile, while Red keeps its original root-level paths.
+        if stopping:
+            raise StartupCancelled
+        emulator = subprocess.Popen(
+            ["/opt/sameboy/sameboy", "--model", model, str(link)],
+            env={
+                **os.environ,
+                "HOME": str(profile),
+                "XDG_DATA_HOME": str(profile / ".local/share"),
+                "XDG_CONFIG_HOME": str(profile / ".config"),
+            },
+        )
+        processes.append(emulator)
+        LOGGER.info("event=process_started service=sameboy pid=%s", emulator.pid)
         start(
             "vnc",
             "x11vnc",
@@ -209,10 +245,10 @@ def main() -> int:
         ready(lambda: tcp_ready(5900))
         start("websockify", "websockify", "127.0.0.1:6080", "127.0.0.1:5900")
         ready(lambda: tcp_ready(6080))
-        start("nginx", "nginx", "-c", "/app/nginx.conf", "-g", "daemon off;")
-        ready(lambda: tcp_ready(8081))
+        start("nginx", "nginx", "-c", "/app/sameboy/nginx.conf", "-g", "daemon off;")
+        ready(lambda: tcp_ready(8080))
         READY.write_text(json.dumps([process.pid for process in processes]))
-        LOGGER.info("event=runtime_ready model=%s profile=/profile", model)
+        LOGGER.info("event=runtime_ready model=%s profile=%s", model, profile)
         while not stopping:
             for process in processes:
                 if process.poll() is not None:

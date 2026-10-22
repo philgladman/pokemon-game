@@ -1,8 +1,8 @@
-# External references
+# External sources
 
-`external/pokered/` is the ignored checkout of
-[`pret/pokered`](https://github.com/pret/pokered) used by the Docker ROM builder.
-The source is mounted read-only and never built in place or included in this
-project. See the [quickstart](../README.md#quickstart) for the pinned revision
-and setup commands.
+Normal startup fetches pinned game source into Docker's project-scoped `sources`
+volume. No host checkout is required here. Existing ignored checkouts can remain
+for manual research; the builder does not read or modify them.
 
+See the [game catalog and workflow](../docs/sameboy.md#source-selection-and-verification)
+for repositories, pinned revisions, and source overrides.

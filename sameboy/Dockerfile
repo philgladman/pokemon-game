@@ -11,8 +11,9 @@ RUN curl -fL --retry 3 https://codeload.github.com/gbdev/rgbds/tar.gz/refs/tags/
 FROM toolchain AS rom-builder
 RUN apt-get update && apt-get install -y --no-install-recommends git python3 \
     && rm -rf /var/lib/apt/lists/*
-COPY rom_builder.py /app/rom_builder.py
-ENTRYPOINT ["python3", "/app/rom_builder.py"]
+COPY __init__.py games.py rom_builder.py /app/sameboy/
+WORKDIR /app
+ENTRYPOINT ["python3", "-m", "sameboy.rom_builder"]
 
 FROM toolchain AS build
 RUN apt-get update && apt-get install -y --no-install-recommends libsdl2-dev libgl-dev \
@@ -37,11 +38,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=build /src/sameboy/build/bin/SDL /opt/sameboy
 COPY --from=build /src/rgbds/LICENSE /usr/share/doc/rgbds/LICENSE
 COPY --from=build /src/novnc /opt/novnc
-COPY . /app
+COPY . /app/sameboy
 ENV HOME=/profile XDG_DATA_HOME=/profile/.local/share XDG_CONFIG_HOME=/profile/.config \
     XDG_RUNTIME_DIR=/run/user/1000 DISPLAY=:99 SDL_AUDIODRIVER=pulseaudio \
-    PULSE_SERVER=unix:/run/user/1000/pulse/native LIBGL_ALWAYS_SOFTWARE=1
+    PULSE_SERVER=unix:/run/user/1000/pulse/native LIBGL_ALWAYS_SOFTWARE=1 PYTHONPATH=/app
 USER player
 WORKDIR /profile
-EXPOSE 8081
-CMD ["python3", "/app/run.py"]
+EXPOSE 8080
+CMD ["python3", "-m", "sameboy.run"]
