@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added an explicit Docker ROM-builder service using the shared pinned RGBDS
+  toolchain. It exports clean pinned source into temporary storage, verifies
+  canonical Red, and publishes ROM/symbol files without clearing existing cache
+  files or touching save profiles. Host Python and build tools are no longer
+  prerequisites for the original-game workflow.
+- Reorganized the README around SameBoy onboarding and saves; moved the former
+  Python recreation setup and architecture into a clearly labeled legacy guide.
+
 - Added a separate loopback-only SameBoy 1.0.4 Docker/noVNC workflow with
   source-built ROM input, native CGB compatibility color, project-scoped save
   volumes, graceful SDL shutdown, and opt-in bounded PCM browser audio.

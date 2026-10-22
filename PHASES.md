@@ -64,8 +64,10 @@ original ROM; rebuilding them in Python is no longer the next milestone.
 
 **Status: Current — implemented; automated and browser verification complete**
 
-- Compile the original Red ROM from the source checkout and run it in SameBoy's
-  Linux SDL frontend inside Docker.
+- Compile the original Red ROM with an explicit Docker builder service and run
+  it in SameBoy's Linux SDL frontend inside Docker. Fresh setup needs only Git
+  and Docker, not host Python, RGBDS, or compiler tools. The builder preserves
+  the read-only source checkout and verifies the canonical ROM before publishing.
 - Expose the virtual display through VNC/noVNC for play in a Mac browser. This
   workflow requires no native Mac application.
 - Stream container audio separately through bounded PCM WebSocket/AudioWorklet

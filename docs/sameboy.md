@@ -1,8 +1,9 @@
 # Original game in a browser
 
-This separate workflow runs SameBoy's Linux SDL frontend on a private virtual
+The current workflow runs SameBoy's Linux SDL frontend on a private virtual
 display in Docker Desktop, with noVNC video and a separate browser audio stream.
-It preserves the Python recreation and its `docker-compose.yml` on port 8080.
+The [legacy Python recreation](legacy-recreation.md) and its
+`docker-compose.yml` remain preserved on port 8080.
 SameBoy uses Mesa software OpenGL on a 320×288 virtual display (2× Game Boy
 resolution), scaled to fit the browser. Matching the window and virtual display
 avoids SDL fullscreen cropping without requiring a desktop window manager.
@@ -11,14 +12,39 @@ player. A larger emulator window would exceed this fixed virtual display.
 
 ## Build and play
 
-Complete the [source setup](../README.md#source-setup) and install the optional
-[oracle build prerequisites](reference-oracle.md). Compile and verify the local
-canonical Red ROM:
+Only Git, Docker Desktop, and Compose v2 are required on the host. From the
+repository root, fetch the canonical source and build the local Red ROM:
 
 ```bash
-.venv/bin/python -m tools.pokered_oracle build
+git clone https://github.com/pret/pokered.git external/pokered
+git -C external/pokered checkout af519899719f0754965776faac0e836a3b906e6d
+docker compose -p pokemon-baseline -f compose.sameboy.yml run --build --rm rom-builder
 docker compose -p pokemon-baseline -f compose.sameboy.yml up --build -d --wait
 ```
+
+The `rom-builder` service is profile-gated and runs only when explicitly
+requested. It has RGBDS 1.0.4, Python, Git, and compiler tools inside its Docker
+image; it does not require the optional host PyBoy/oracle setup. Source is
+mounted read-only. The builder rejects a different HEAD or normal tracked
+staged/unstaged edits, ignores untracked files, and exports the pinned Git tree
+to temporary storage rather than building the checkout. Even files hidden by
+Git index flags cannot enter the build. A verified canonical Red SHA-1
+`ea9bcae617fdf159b045185467ae58b2e4a48b9a` is required before publishing
+`pokered.gbc` and `pokered.sym` under `.cache/oracle/build/pokered`.
+Concurrent builder invocations serialize; compile or hash failures leave the
+previous artifacts intact. Existing oracle files are not removed.
+
+For subsequent rebuilds, **stop SameBoy before replacing its mounted ROM**:
+
+```bash
+docker compose -p pokemon-baseline -f compose.sameboy.yml stop sameboy
+docker compose -p pokemon-baseline -f compose.sameboy.yml run --build --rm rom-builder
+docker compose -p pokemon-baseline -f compose.sameboy.yml up -d --force-recreate --wait
+```
+
+This builder intentionally supports only canonical Red, not patched games.
+Source customization and Blue/Yellow support remain future work. A separately
+compiled custom ROM can already be supplied with `SAMEBOY_ROM` as shown below.
 
 Open <http://127.0.0.1:8081>. Click the display to focus it. Arrows move, X is A,
 Z is B, Enter is Start, Backspace is Select, Escape opens SameBoy's menu, and

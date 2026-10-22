@@ -1,13 +1,17 @@
-# Pokémon Red reference oracle
+# Legacy recreation reference oracle
 
-The reference oracle is an optional developer tool for checking runtime
+The reference oracle is an optional developer tool for checking the preserved
+[Python recreation](legacy-recreation.md), not the current SameBoy play workflow.
+It checks runtime
 assumptions against the pinned `pret/pokered` revision in a headless emulator.
 It is deliberately separate from the normal test suite: the application does
-not depend on an emulator, RGBDS, or a ROM at runtime.
+not depend on an emulator, RGBDS, or a ROM at runtime. To build and play the
+original game using Docker alone, follow the [quickstart](../README.md).
 
 ## Prerequisites
 
-- The pinned source checkout described in the [README](../README.md#source-setup).
+- The Python development setup and pinned checkout in the
+  [legacy guide](legacy-recreation.md#source-setup).
 - RGBDS **1.0.4**, with `rgbasm`, `rgblink`, `rgbfix`, and `rgbgfx` on `PATH`.
   Alternatively, set `RGBDS` to the tool-name prefix used by the upstream
   Makefile, such as `/opt/rgbds-1.0.4/bin/`.

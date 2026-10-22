@@ -1,7 +1,27 @@
 services:
+  rom-builder:
+    profiles: ["build"]
+    build:
+      context: sameboy
+      target: rom-builder
+    volumes:
+      - type: bind
+        source: ./external/pokered
+        target: /source
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./.cache/oracle/build/pokered
+        target: /output
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
   sameboy:
     build:
       context: sameboy
+      target: runtime
     init: true
     ports:
       - "127.0.0.1:${SAMEBOY_PORT:-8081}:8081"
