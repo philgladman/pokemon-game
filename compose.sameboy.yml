@@ -12,7 +12,7 @@ services:
         bind:
           create_host_path: false
       - type: bind
-        source: ./.cache/oracle/build/pokered
+        source: ./.cache/roms/pokered
         target: /output
     security_opt:
       - no-new-privileges:true
@@ -29,7 +29,7 @@ services:
       SAMEBOY_MODEL: ${SAMEBOY_MODEL:-cgb-e}
     volumes:
       - type: bind
-        source: ${SAMEBOY_ROM:-./.cache/oracle/build/pokered/pokered.gbc}
+        source: ${SAMEBOY_ROM:-./.cache/roms/pokered/pokered.gbc}
         target: /rom/pokered.gbc
         read_only: true
         bind:

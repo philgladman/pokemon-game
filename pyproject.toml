@@ -3,36 +3,27 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pokemon-red-browser-runtime"
+name = "pokemon-sameboy-browser"
 version = "0.3.0"
-description = "A source-driven Pokémon Red Pallet Town compatibility runtime"
+description = "Source-built Pokémon in SameBoy with Docker and browser controls"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-  "fastapi>=0.115,<1",
-  "pydantic>=2.10,<3",
-  "uvicorn[standard]>=0.34,<1",
-]
+dependencies = ["websockets>=14,<17"]
 
 [project.optional-dependencies]
 dev = [
-  "httpx>=0.28,<1",
   "mypy>=1.14,<2",
   "pytest>=8.3,<9",
   "pytest-cov>=6,<7",
   "ruff>=0.9,<1",
-  "websockets>=14,<17",
-]
-oracle = [
-  "pyboy==2.8.1",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["backend", "tools"]
+packages = ["sameboy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-config --strict-markers --cov=backend --cov=tools --cov-report=term-missing"
+addopts = "--strict-config --strict-markers --cov=sameboy --cov-report=term-missing"
 
 [tool.ruff]
 target-version = "py312"
@@ -44,5 +35,5 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["backend", "tools", "sameboy"]
+packages = ["sameboy"]
 

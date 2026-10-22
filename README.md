@@ -2,7 +2,7 @@
 
 Play source-built Pokémon Red in SameBoy through Docker and a Mac browser.
 The original ROM provides game behavior and graphics; future customizations
-will change the game source, not recreate its engine. See [project phases](PHASES.md).
+will change the game source. See [project phases](PHASES.md).
 
 ## Quickstart
 
@@ -47,8 +47,18 @@ an explicit one-shot service, not part of ordinary startup.
 - [SameBoy workflow](docs/sameboy.md): building, controls, profiles, audio,
   custom ROM input, and troubleshooting.
 - [Project phases](PHASES.md) and [changelog](CHANGELOG.md).
-- [Legacy recreation](docs/legacy-recreation.md): preserved Python/Canvas/3D
-  experiment, development setup, architecture, and checks. It is not the current
-  play workflow.
-- [Reference oracle](docs/reference-oracle.md): optional PyBoy comparisons for
-  the legacy recreation; not required to build or play the original game.
+
+## Development
+
+Contributors need Python 3.12+ and Node.js 22+ in addition to Docker. Browser
+modules use native JavaScript; there is no package installation or bundling step.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+make check
+```
+
+Checks cover Python formatting, linting, types, runtime supervision, ROM
+publication, browser controls, and audio buffering. Gameplay itself runs in
+SameBoy; Python manages the container processes and audio transport.
