@@ -88,6 +88,44 @@ not a crashed game. `sameboy` has a health check; `--wait` waits for readiness.
 An ordinary `up` runs source preparation; `restart sameboy` only restarts the
 already configured emulator and does not change the selected game or fetch.
 
+## ROM export
+
+To build and export without launching the emulator, browser, or audio services:
+
+```bash
+POKEMON_GAME=red docker compose -f compose.export.yaml run --build --rm rom-export
+```
+
+`compose.export.yaml` extends the existing builder, sharing its pinned toolchain,
+source/ROM volumes, security settings, and repository/revision/checksum variables.
+It never mounts the profile volume, publishes ports, or starts the player.
+With the same project name (default `pokemon-baseline`), export and gameplay
+reuse verified ROMs and source caches. A different `-p` selects separate caches.
+Initial exports build the selected game; cached runs still fetch source and fail
+if the remote is unavailable. They are not an offline copy command.
+
+Only the verified ROM is copied to the ignored host `.cache/exports/` folder:
+
+| `POKEMON_GAME` | Exported file |
+| --- | --- |
+| `red` | `.cache/exports/pokemon-red/pokered.gbc` |
+| `blue` | `.cache/exports/pokemon-blue/pokeblue.gbc` |
+| `yellow` | `.cache/exports/pokemon-yellow/pokeyellow.gbc` |
+| `gold` | `.cache/exports/pokemon-gold/pokegold.gbc` |
+| `silver` | `.cache/exports/pokemon-silver/pokesilver.gbc` |
+| `crystal` | `.cache/exports/pokemon-crystal/pokecrystal.gbc` |
+
+Repeat exports replace the same game's file, including when source/checksum
+overrides change. The copied file is checksum-verified before atomic replacement;
+failures retain any previous complete export. Other exports and unrelated files
+are not removed. Symbol files, saves, states, and RTC data are not exported.
+Symlinked export folders/files are rejected; use an ordinary local folder.
+
+The file can be imported into the existing SameBoy iPhone app using Files,
+email, or AirDrop. No upload, email automation, or public hosting is configured.
+Only use content you are authorized to use. Actual iPhone behavior and save
+transfer remain separate from this Mac build/export workflow.
+
 ## Saves and migration
 
 The top-level Compose project name defaults to `pokemon-baseline`, preserving
@@ -125,9 +163,9 @@ SAMEBOY_PORT=8082 SAMEBOY_ROM=/absolute/path/to/modified.gbc \
 
 The bind source must exist; Compose will not create it. Set `POKEMON_GAME` too
 if the ROM should use a non-Red per-game save slot. No ROM or save is copied into
-this repository by normal startup. Compiled artifacts can later be exported from
-the `roms` volume for import into the existing SameBoy iPhone app; actual device
-verification remains a separate milestone.
+this repository by normal startup. Use the [ROM export workflow](#rom-export)
+for source-built catalog games; exporting an arbitrary prebuilt custom ROM is
+not part of that command. Actual device verification remains a separate milestone.
 
 ## Audio, security, and troubleshooting
 

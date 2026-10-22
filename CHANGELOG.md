@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added an export-only Compose workflow for all six games, reusing the existing
+  source fetch/build caches without starting the player or mounting save data.
+  Verified ROMs are atomically exported to ignored `.cache/exports/pokemon-<game>/`
+  folders for local transfer; failed exports preserve previous complete files.
 - Use port 8080 by default for browser access and internal readiness checks;
   `SAMEBOY_PORT` still overrides the loopback browser port.
 - Added one-command Compose startup for Red, Blue, Yellow, Gold, Silver, and

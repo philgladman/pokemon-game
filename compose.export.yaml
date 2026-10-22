@@ -1,0 +1,16 @@
+name: pokemon-baseline
+
+services:
+  rom-export:
+    extends:
+      file: compose.yaml
+      service: rom-builder
+    command: ["--export", "/exports"]
+    volumes:
+      - type: bind
+        source: ./.cache/exports
+        target: /exports
+
+volumes:
+  sources:
+  roms:
