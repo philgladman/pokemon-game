@@ -13,6 +13,25 @@ from sameboy.audio import MAX_CLIENTS, AudioBridge
 from sameboy.run import StartupCancelled, stop_process, wait_ready
 
 
+@pytest.mark.parametrize("listening", [True, False])
+def test_health_checks_browser_port(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, listening: bool
+) -> None:
+    ready = tmp_path / "ready.json"
+    ready.write_text("[123]")
+    monkeypatch.setattr(run, "READY", ready)
+    monkeypatch.setattr(run.os, "kill", lambda _pid, _signal: None)
+    checked_ports: list[int] = []
+
+    def browser_ready(port: int) -> bool:
+        checked_ports.append(port)
+        return listening
+
+    monkeypatch.setattr(run, "tcp_ready", browser_ready)
+    assert run.health() is listening
+    assert checked_ports == [8080]
+
+
 def test_readiness_detects_failed_dependency() -> None:
     process = subprocess.Popen([sys.executable, "-c", "raise SystemExit(3)"])
     process.wait(timeout=3)
@@ -91,6 +110,7 @@ def test_invalid_runtime_inputs_fail_before_starting_services(
     monkeypatch.setattr(run, "READY", tmp_path / "ready.json")
     monkeypatch.setattr(run.signal, "signal", lambda *_args: None)
     monkeypatch.setenv("SAMEBOY_MODEL", "invalid" if failure == "invalid_model" else "cgb-e")
+    monkeypatch.setenv("SAMEBOY_ROM", "/rom/pokered.gbc")
 
     def unexpected_process(*_args: Any, **_kwargs: Any) -> None:
         pytest.fail("invalid input started a runtime service")
@@ -112,6 +132,7 @@ def test_stop_during_startup_reaps_started_child_and_never_publishes_health(
     monkeypatch.setattr(run, "Path", lambda name: tmp_path / str(name).lstrip("/"))
     monkeypatch.setattr(run, "READY", tmp_path / "ready.json")
     monkeypatch.setenv("SAMEBOY_MODEL", "cgb-e")
+    monkeypatch.setenv("SAMEBOY_ROM", "/rom/pokered.gbc")
     handlers: dict[int, Any] = {}
     monkeypatch.setattr(
         run.signal, "signal", lambda number, handler: handlers.update({number: handler})
