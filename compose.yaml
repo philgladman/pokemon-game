@@ -1,7 +1,7 @@
 name: pokemon-baseline
 
 x-game-environment: &game-environment
-  POKEMON_GAME: ${POKEMON_GAME:-crystal}
+  POKEMON_GAME: ${POKEMON_GAME:-red}
   # Empty overrides use the selected game's pinned catalog values.
   POKEMON_SOURCE_REPO: ${POKEMON_SOURCE_REPO:-}
   POKEMON_SOURCE_VERSION: ${POKEMON_SOURCE_VERSION:-}
