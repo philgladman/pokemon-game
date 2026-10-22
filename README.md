@@ -29,6 +29,26 @@ builder never follows a moving branch or builds in your host source checkout.
 Network access is required for source preparation, including cached starts.
 No ROM, Pokémon source, or proprietary media is committed here.
 
+## Build and export without playing
+
+Create a local ROM file without starting the emulator or touching saves:
+
+```bash
+POKEMON_GAME=red docker compose -f compose.export.yaml run --build --rm rom-export
+```
+
+Red is written to `.cache/exports/pokemon-red/pokered.gbc`. Choose any supported
+selector; for example, `POKEMON_GAME=crystal` exports
+`.cache/exports/pokemon-crystal/pokecrystal.gbc`. The folder is ignored by Git.
+Import the file into the SameBoy iPhone app using Files, email, or AirDrop; the
+command only creates the local file and does not send or host it. Save progress
+is not included. Only use content you are authorized to use.
+
+Export shares the normal source/ROM caches and configuration overrides. It still
+fetches source on every run, so network access is required even for cached ROMs.
+Repeat exports atomically replace the selected game's file after verification;
+other games and files are retained. See [all export paths](docs/sameboy.md#rom-export).
+
 ## Controls and saves
 
 Arrows move; X is A, Z is B, Enter is Start, Backspace is Select, Escape opens

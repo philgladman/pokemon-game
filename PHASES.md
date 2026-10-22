@@ -41,8 +41,11 @@ for current commands and acceptance limits.
 
 ## Phase 4 — iPhone play
 
-**Status: Future**
+**Status: ROM export implemented; device verification pending**
 
+- Build and export any supported game with one Compose command, without starting
+  the emulator or touching saves. Reuse the existing source/ROM caches and copy
+  only the verified ROM into the ignored `.cache/exports/pokemon-<game>/` folder.
 - Import compiled ROMs into the existing SameBoy iPhone app using Files or AirDrop.
 - Test the same builds on Mac and iPhone.
 - Verify device controls, ROM import, saving, and overall play on a real iPhone;

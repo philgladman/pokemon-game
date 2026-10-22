@@ -6,6 +6,7 @@ import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
+from typing import BinaryIO
 
 import pytest
 
@@ -202,4 +203,135 @@ def test_cli_config_failure_is_structured(
     assert rom_builder.main() == 1
     message = json.loads(capsys.readouterr().out)
     assert message["event"] == "rom_build"
+    assert message["outcome"] == "failure"
+
+
+@pytest.mark.parametrize("name", GAMES)
+def test_export_copies_only_verified_rom(name: str, tmp_path: Path) -> None:
+    game = replace(GAMES[name], sha1=hashlib.sha1(ROM).hexdigest())
+    build = tmp_path / "build"
+    build.mkdir()
+    artifacts(game, build)
+    root = tmp_path / "exports"
+    exported = rom_builder.export_rom(game, build / game.filename, root)
+    assert exported == root / f"pokemon-{name}" / game.filename
+    assert exported.read_bytes() == ROM
+    assert exported.stat().st_mode & 0o777 == 0o644
+    assert list(root.rglob("*")) == [exported.parent, exported]
+
+
+def test_export_replaces_only_selected_file(source: Game, tmp_path: Path) -> None:
+    rom = tmp_path / source.filename
+    rom.write_bytes(ROM)
+    root = tmp_path / "exports"
+    previous = rom_builder.export_rom(source, rom, root)
+    previous.write_bytes(b"previous complete export")
+    unrelated = root / "keep"
+    unrelated.write_text("retain")
+    rom_builder.export_rom(source, rom, root)
+    assert previous.read_bytes() == ROM
+    assert unrelated.read_text() == "retain"
+
+
+@pytest.mark.parametrize("failure", ["checksum", "copy", "publication"])
+def test_failed_export_preserves_previous_file(
+    source: Game, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    rom = tmp_path / source.filename
+    rom.write_bytes(ROM)
+    root = tmp_path / "exports"
+    exported = rom_builder.export_rom(source, rom, root)
+    previous = b"previous complete export"
+    exported.write_bytes(previous)
+
+    def fail(*_arguments: object, **_keywords: object) -> None:
+        raise OSError("injected failure")
+
+    if failure == "checksum":
+
+        def corrupt_copy(_source: BinaryIO, destination: BinaryIO) -> None:
+            destination.write(b"corrupt copy")
+
+        monkeypatch.setattr(rom_builder.shutil, "copyfileobj", corrupt_copy)
+    elif failure == "copy":
+        monkeypatch.setattr(rom_builder.shutil, "copyfileobj", fail)
+    else:
+        monkeypatch.setattr(rom_builder.os, "replace", fail)
+    with pytest.raises((ValueError, OSError)):
+        rom_builder.export_rom(source, rom, root)
+    assert exported.read_bytes() == previous
+    assert list(exported.parent.iterdir()) == [exported]
+
+
+@pytest.mark.parametrize("link", ["root", "directory", "file"])
+def test_symlinked_export_paths_rejected(source: Game, tmp_path: Path, link: str) -> None:
+    rom = tmp_path / source.filename
+    rom.write_bytes(ROM)
+    root = tmp_path / "exports"
+    directory = root / "pokemon-red"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    existing = outside / source.filename
+    existing.write_bytes(b"keep")
+    if link == "root":
+        root.symlink_to(outside, target_is_directory=True)
+    elif link == "directory":
+        root.mkdir()
+        directory.symlink_to(outside, target_is_directory=True)
+    else:
+        directory.mkdir(parents=True)
+        (directory / source.filename).symlink_to(existing)
+    with pytest.raises(ValueError, match="symbolic links"):
+        rom_builder.export_rom(source, rom, root)
+    assert list(outside.iterdir()) == [existing]
+    assert existing.read_bytes() == b"keep"
+
+
+@pytest.mark.parametrize("field", ["name", "filename"])
+def test_export_rejects_non_catalog_paths(source: Game, tmp_path: Path, field: str) -> None:
+    game = replace(source, **{field: "../outside"})
+    with pytest.raises(ValueError, match="catalog"):
+        rom_builder.export_rom(game, tmp_path / "input", tmp_path / "exports")
+    assert not (tmp_path / "exports").exists()
+
+
+def test_cli_exports_after_build_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    game = replace(GAMES["red"], sha1=hashlib.sha1(ROM).hexdigest())
+    rom = tmp_path / game.filename
+    rom.write_bytes(ROM)
+    root = tmp_path / "exports"
+    monkeypatch.setattr(rom_builder, "configured_game", lambda: game)
+    monkeypatch.setattr(rom_builder, "build_rom", lambda *_: rom)
+    monkeypatch.setattr(sys, "argv", ["rom_builder", "--export", str(root)])
+    assert rom_builder.main() == 0
+    assert (root / "pokemon-red" / game.filename).read_bytes() == ROM
+    message = json.loads(capsys.readouterr().out)
+    assert message["event"] == "rom_export"
+    assert message["outcome"] == "success"
+
+
+def test_cli_does_not_export_failed_build(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def fail(*_arguments: object) -> Path:
+        raise rom_builder.BuildError("build failed")
+
+    root = tmp_path / "exports"
+    monkeypatch.setattr(rom_builder, "build_rom", fail)
+    monkeypatch.setattr(sys, "argv", ["rom_builder", "--export", str(root)])
+    assert rom_builder.main() == 1
+    assert not root.exists()
+    assert json.loads(capsys.readouterr().out)["event"] == "rom_build"
+
+
+def test_cli_export_failure_is_structured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(rom_builder, "build_rom", lambda *_: tmp_path / "missing")
+    monkeypatch.setattr(sys, "argv", ["rom_builder", "--export", str(tmp_path / "exports")])
+    assert rom_builder.main() == 1
+    message = json.loads(capsys.readouterr().out)
+    assert message["event"] == "rom_export"
     assert message["outcome"] == "failure"
