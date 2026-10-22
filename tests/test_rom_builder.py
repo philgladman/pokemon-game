@@ -79,7 +79,7 @@ def test_build_failure_preserves_existing_output(
 ) -> None:
     output = tmp_path / "output"
     output.mkdir()
-    for name in (*rom_builder.ARTIFACTS, "oracle-extra.txt"):
+    for name in (*rom_builder.ARTIFACTS, "unrelated.txt"):
         (output / name).write_text("existing")
 
     def fail(_build: Path) -> None:
@@ -88,7 +88,7 @@ def test_build_failure_preserves_existing_output(
     monkeypatch.setattr(rom_builder, "compile_rom", fail)
     with pytest.raises(rom_builder.BuildError, match="bad ROM hash"):
         rom_builder.build_rom(source, output)
-    for name in (*rom_builder.ARTIFACTS, "oracle-extra.txt"):
+    for name in (*rom_builder.ARTIFACTS, "unrelated.txt"):
         assert (output / name).read_text() == "existing"
 
 
@@ -97,7 +97,7 @@ def test_verified_build_publishes_artifacts_and_preserves_other_files(
 ) -> None:
     output = tmp_path / "output"
     output.mkdir()
-    (output / "oracle-extra.txt").write_text("keep")
+    (output / "unrelated.txt").write_text("keep")
 
     def compile_fixture(build: Path) -> None:
         assert (build / "input.txt").read_text() == "canonical source\n"
@@ -108,7 +108,7 @@ def test_verified_build_publishes_artifacts_and_preserves_other_files(
     rom_builder.build_rom(source, output)
     assert (output / "pokered.gbc").read_bytes() == b"verified ROM"
     assert (output / "pokered.sym").read_text() == "debug symbols"
-    assert (output / "oracle-extra.txt").read_text() == "keep"
+    assert (output / "unrelated.txt").read_text() == "keep"
     assert not list(output.glob(".rom-publish-*"))
 
 
@@ -166,3 +166,29 @@ def test_cli_source_failure_is_nonzero_and_structured(
     assert messages[-1]["output"] == str(output)
     assert "clean pinned checkout" in messages[-1]["error"]
     assert not (output / "pokered.gbc").exists()
+
+
+def test_module_entrypoint_reports_missing_source_without_publishing(tmp_path: Path) -> None:
+    output = tmp_path / "output"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "sameboy.rom_builder",
+            "--source",
+            str(tmp_path / "missing-source"),
+            "--output",
+            str(output),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert result.stderr == ""
+    messages = [json.loads(line) for line in result.stdout.splitlines()]
+    assert messages[-1]["event"] == "rom_build"
+    assert messages[-1]["outcome"] == "failure"
+    assert "clean pinned checkout" in messages[-1]["error"]
+    assert not any((output / name).exists() for name in rom_builder.ARTIFACTS)

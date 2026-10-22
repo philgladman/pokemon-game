@@ -1,11 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
-// The independent container serves these browser modules without a build step.
-// @ts-expect-error Standalone JavaScript intentionally lives outside the app's TS project.
-import { PcmQueue } from '../../sameboy/web/audio-buffer.js';
-// @ts-expect-error Standalone JavaScript intentionally lives outside the app's TS project.
-import { GameKeyboard } from '../../sameboy/web/keyboard.js';
+import assert from 'node:assert/strict';
+import { describe, it, mock } from 'node:test';
+import { PcmQueue } from '../audio-buffer.js';
+import { GameKeyboard } from '../keyboard.js';
 
-function pcm(frames: Array<[number, number]>): ArrayBuffer {
+function pcm(frames) {
   const buffer = new ArrayBuffer(frames.length * 4);
   const view = new DataView(buffer);
   frames.forEach(([left, right], i) => {
@@ -15,13 +13,13 @@ function pcm(frames: Array<[number, number]>): ArrayBuffer {
   return buffer;
 }
 
-function key(code: string) {
-  return { code, preventDefault: vi.fn(), stopImmediatePropagation: vi.fn() };
+function key(code) {
+  return { code, preventDefault: mock.fn(), stopImmediatePropagation: mock.fn() };
 }
 
 describe('SameBoy browser keyboard', () => {
   it('sends exact SDL keysyms, suppresses repeats and releases every held key on blur', () => {
-    const send = vi.fn();
+    const send = mock.fn();
     const keyboard = new GameKeyboard(send);
     const event = key('KeyX');
     keyboard.handle(event, true);
@@ -29,38 +27,38 @@ describe('SameBoy browser keyboard', () => {
     keyboard.handle(key('Space'), true);
     keyboard.release();
     keyboard.release();
-    expect(send.mock.calls).toEqual([
+    assert.deepEqual(send.mock.calls.map(call => call.arguments), [
       [0x78, 'KeyX', true], [0x20, 'Space', true],
       [0x78, 'KeyX', false], [0x20, 'Space', false],
     ]);
-    expect(event.preventDefault).toHaveBeenCalledTimes(2);
+    assert.equal(event.preventDefault.mock.callCount(), 2);
   });
 
   it('leaves unrelated browser keys alone and ignores unheld releases', () => {
-    const send = vi.fn();
+    const send = mock.fn();
     const keyboard = new GameKeyboard(send);
     const event = key('Tab');
-    expect(keyboard.handle(event, true)).toBe(false);
-    expect(event.preventDefault).not.toHaveBeenCalled();
+    assert.equal(keyboard.handle(event, true), false);
+    assert.equal(event.preventDefault.mock.callCount(), 0);
     keyboard.handle(key('ArrowLeft'), false);
-    expect(send).not.toHaveBeenCalled();
+    assert.equal(send.mock.callCount(), 0);
   });
 
   it('maps all documented controls and removes released keys from blur cleanup', () => {
-    const send = vi.fn();
+    const send = mock.fn();
     const keyboard = new GameKeyboard(send);
     const keys = [
       ['ArrowUp', 0xff52], ['ArrowDown', 0xff54], ['ArrowLeft', 0xff51],
       ['ArrowRight', 0xff53], ['KeyZ', 0x7a], ['Enter', 0xff0d],
       ['Backspace', 0xff08], ['Escape', 0xff1b],
-    ] as const;
+    ];
     for (const [code, keysym] of keys) {
       keyboard.handle(key(code), true);
       keyboard.handle(key(code), false);
-      expect(send).toHaveBeenLastCalledWith(keysym, code, false);
+      assert.deepEqual(send.mock.calls.at(-1).arguments, [keysym, code, false]);
     }
     keyboard.release();
-    expect(send).toHaveBeenCalledTimes(keys.length * 2);
+    assert.equal(send.mock.callCount(), keys.length * 2);
   });
 });
 
@@ -71,10 +69,10 @@ describe('SameBoy audio worklet queue', () => {
     const left = new Float32Array(5).fill(1);
     const right = new Float32Array(5).fill(1);
     queue.render(left, right);
-    expect([...left]).toEqual([0.5, -1, 0, 0, 0]);
-    expect(right[0]).toBe(-0.5);
-    expect(right[1]).toBeCloseTo(32767 / 32768);
-    expect([...right.slice(2)]).toEqual([0, 0, 0]);
+    assert.deepEqual([...left], [0.5, -1, 0, 0, 0]);
+    assert.equal(right[0], -0.5);
+    assert.ok(Math.abs(right[1] - 32767 / 32768) < 1e-7);
+    assert.deepEqual([...right.slice(2)], [0, 0, 0]);
   });
 
   it('resamples to the actual audio context rate with interpolation', () => {
@@ -83,8 +81,8 @@ describe('SameBoy audio worklet queue', () => {
     const left = new Float32Array(4);
     const right = new Float32Array(4);
     queue.render(left, right);
-    expect([...left]).toEqual([0, 0.25, 0.5, 0.25]);
-    expect([...right]).toEqual([0, -0.25, -0.5, -0.25]);
+    assert.deepEqual([...left], [0, 0.25, 0.5, 0.25]);
+    assert.deepEqual([...right], [0, -0.25, -0.5, -0.25]);
   });
 
   it('drops oldest audio when full and ignores malformed frames', () => {
@@ -92,10 +90,10 @@ describe('SameBoy audio worklet queue', () => {
     queue.push(pcm([[1000, 0], [2000, 0]]));
     queue.push(pcm([[3000, 0], [4000, 0], [5000, 0], [6000, 0]]));
     queue.push(new ArrayBuffer(3));
-    expect(queue.length).toBe(3);
+    assert.equal(queue.length, 3);
     const left = new Float32Array(2);
     queue.render(left, new Float32Array(2));
-    expect([...left]).toEqual([4000 / 32768, 5000 / 32768]);
+    assert.deepEqual([...left], [4000 / 32768, 5000 / 32768]);
   });
 
   it('clears pending samples on disconnect', () => {
@@ -105,6 +103,7 @@ describe('SameBoy audio worklet queue', () => {
     const left = new Float32Array(4).fill(1);
     const right = new Float32Array(4).fill(1);
     queue.render(left, right);
-    expect([...left, ...right]).toEqual(Array(8).fill(0));
+    assert.deepEqual([...left, ...right], Array(8).fill(0));
   });
 });
+

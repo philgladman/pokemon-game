@@ -9,13 +9,6 @@ __pycache__/
 htmlcov/
 .coverage
 
-frontend/dist/
-frontend/node_modules/
-frontend/*.tsbuildinfo
-
 # Reference source is intentionally never vendored.
 external/pokered/
-data/generated/
-data/yaml/imported/
 .cache/
-assets/extracted/

@@ -1,1 +1,0 @@
-"""Canonical game-source providers."""

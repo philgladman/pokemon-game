@@ -2,8 +2,6 @@
 
 The current workflow runs SameBoy's Linux SDL frontend on a private virtual
 display in Docker Desktop, with noVNC video and a separate browser audio stream.
-The [legacy Python recreation](legacy-recreation.md) and its
-`docker-compose.yml` remain preserved on port 8080.
 SameBoy uses Mesa software OpenGL on a 320×288 virtual display (2× Game Boy
 resolution), scaled to fit the browser. Matching the window and virtual display
 avoids SDL fullscreen cropping without requiring a desktop window manager.
@@ -24,15 +22,14 @@ docker compose -p pokemon-baseline -f compose.sameboy.yml up --build -d --wait
 
 The `rom-builder` service is profile-gated and runs only when explicitly
 requested. It has RGBDS 1.0.4, Python, Git, and compiler tools inside its Docker
-image; it does not require the optional host PyBoy/oracle setup. Source is
-mounted read-only. The builder rejects a different HEAD or normal tracked
-staged/unstaged edits, ignores untracked files, and exports the pinned Git tree
+image. Source is mounted read-only. The builder rejects a different HEAD or
+normal tracked staged/unstaged edits, ignores untracked files, and exports the pinned Git tree
 to temporary storage rather than building the checkout. Even files hidden by
 Git index flags cannot enter the build. A verified canonical Red SHA-1
 `ea9bcae617fdf159b045185467ae58b2e4a48b9a` is required before publishing
-`pokered.gbc` and `pokered.sym` under `.cache/oracle/build/pokered`.
+`pokered.gbc` and `pokered.sym` under `.cache/roms/pokered`.
 Concurrent builder invocations serialize; compile or hash failures leave the
-previous artifacts intact. Existing oracle files are not removed.
+previous artifacts intact; unrelated files in the output directory are retained.
 
 For subsequent rebuilds, **stop SameBoy before replacing its mounted ROM**:
 
@@ -43,8 +40,9 @@ docker compose -p pokemon-baseline -f compose.sameboy.yml up -d --force-recreate
 ```
 
 This builder intentionally supports only canonical Red, not patched games.
-Source customization and Blue/Yellow support remain future work. A separately
-compiled custom ROM can already be supplied with `SAMEBOY_ROM` as shown below.
+Source customization and Red/Blue/Yellow/Gold/Silver/Crystal game selection
+remain future work. A separately compiled custom ROM can already be supplied
+with `SAMEBOY_ROM` as shown below.
 
 Open <http://127.0.0.1:8081>. Click the display to focus it. Arrows move, X is A,
 Z is B, Enter is Start, Backspace is Select, Escape opens SameBoy's menu, and
@@ -123,7 +121,7 @@ transport stops the container. `runtime_ready` means all transports started.
 `emulator_stopped outcome=graceful` confirms the SDL quit path completed. A
 `save_flush=unconfirmed` error means the emulator had to be forced down; inspect
 the logs before relying on the most recent save. If 8081 is occupied, choose
-another `SAMEBOY_PORT`. Leave the original recreation services on 8080 alone.
+another `SAMEBOY_PORT`.
 
 The workflow does not change or complete the future custom-ROM and iPhone
 milestones in [the roadmap](../PHASES.md).
